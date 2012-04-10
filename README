@@ -1,2 +1,6 @@
 Time varying models of HIV sequences
 
+Requirements
+* SQLite3
+* Pysqlite
+* Python 2.7
