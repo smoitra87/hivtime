@@ -5,7 +5,7 @@ This script provides utility functions
 import os,sys
 
 code_tbl = [
-	('#','INT'),
+	('_n_','INT'),
 	('PatientCode','TEXT'),
 	('PatientId','TEXT'),
 	('Accession','TEXT'),
@@ -16,7 +16,7 @@ code_tbl = [
 	('DaysfromfirstSample','INT'),
 	('FiebigStage','TEXT'),
 	('Daysfromtreatmentend','INT'),
-	('#ofpatienttimepoints','INT'),
+	('_n_ofpatienttimepoints','INT'),
 	('Daysfromtreatmentstart','INT'),
 	('DaysfromInfection','INT'),
 	('DaysfromSeroconversion','INT'),

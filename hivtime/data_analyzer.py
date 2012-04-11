@@ -8,6 +8,7 @@ import sqlite3 as lite
 import os,sys
 import utility as util
 from utility import get_datadir
+import markup
 
 #----------------------------------------------------------------------
 # Params --------------------------------------------------------------
@@ -41,6 +42,7 @@ def parse_table(fpath) :
 	header,records = tbldat[0],tbldat[1:]
 	header = header.strip().split('\t')
 	header = [h.replace(' ','') for h in header]
+	header = [h.replace('#','_n_') for h in header]
 	records = [record.strip().split('\t') for record in records]
 
 	return header,records
@@ -56,7 +58,7 @@ def create_table(con,cur,fpath) :
 
 	# Create table with header
 	cmd = 'CREATE TABLE %s('%(tblname)	
-	header_t = ['\''+h+'\' '+code_tbl[h] for h in header]
+	header_t = [h+' '+code_tbl[h] for h in header]
 	cmd += ','.join(header_t) + ')'
 	cur.execute(cmd)
 
@@ -73,12 +75,26 @@ def get_tblname_from_fpath(fpath) :
 	return tblname
 
 
+def make_table(page,rows,header=None) : 
+	""" Make an HTML table for a markup page """
+	page.table(border=1)
+	page.tr()
+	page.th(header)
+	page.tr.close()
+	for row in rows :
+		page.tr()
+		page.td(row)
+		page.tr.close()
+	page.table.close()
+
+
 class TableAnalyzer(object) : 
 	""" Performs analysis on tables """	
 	def __init__(self,cur,tblname): 
 		self.cur = cur # The database cursor handles
 		self.name = tblname
 		self.header_meta = self._get_header_meta()
+		self.header = [h[1] for h in self.header_meta ]
 	
 	def _get_header_meta(self) : 
 		""" Get the header metadata """	
@@ -88,6 +104,28 @@ class TableAnalyzer(object) :
 	def analyze(self)	: 
 		""" Perform the analysis """
 		print "Analyzing %s"%(self.name)
+		
+		# Set up reporting
+		page = markup.page()
+		title="Analysis for %s"%(self.name)
+		page.init(title=title)
+		
+		page.h4("How many non null elements in every Field?")	
+		# How many non null elements in every field ? 
+		
+		page.ul(class_='mylist')
+		for h in self.header :
+			cur.execute("SELECT COUNT(*) from %s where %s !=''"%\
+				(self.name,h))
+			val = cur.fetchone()
+			page.li(h+' : '+str(val[0]),class_='myitem')
+		page.ul.close()
+
+		# How many non null distinct elements in every field ?
+
+		with open(self.name+"_report.html",'w') as fout : 
+			fout.write(page.__str__())
+	
 		
 #----------------------------------------------------------------------
 #  Main Script
