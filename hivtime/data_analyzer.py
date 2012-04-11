@@ -9,14 +9,23 @@ import os,sys
 import utility as util
 from utility import get_datadir
 
+#----------------------------------------------------------------------
+# Params --------------------------------------------------------------
+#----------------------------------------------------------------------
+
+# Filenames and paths
 # Only one db but multiple tables
 dbname = 'hivtime.db'
 dbpath = os.path.join(get_datadir(),dbname)
-TABLE_CREATE=True
 tbls = ['p24.tbl','full_genome.tbl']
 #tbls = ['p24.tbl']
 tbls = [os.path.join(get_datadir(),tbl) for tbl in tbls]
 
+# Boolean params
+TABLE_CREATE=False
+DATA_ANALYZE=True
+
+#----------------------------------------------------------------------
 def parse_table(fpath) : 
 	""" Parse the table """
 	with open(fpath,'r') as fin :
@@ -57,6 +66,33 @@ def create_table(con,cur,fpath) :
 		cur.execute("INSERT INTO %s VALUES (%s)"%(tblname,values))
 		
 
+def get_tblname_from_fpath(fpath) : 
+	""" Get the names of the tables """
+	fname = os.path.split(fpath)[1]
+	tblname = os.path.splitext(fname)[0]
+	return tblname
+
+
+class TableAnalyzer(object) : 
+	""" Performs analysis on tables """	
+	def __init__(self,cur,tblname): 
+		self.cur = cur # The database cursor handles
+		self.name = tblname
+		self.header_meta = self._get_header_meta()
+	
+	def _get_header_meta(self) : 
+		""" Get the header metadata """	
+		cur.execute("PRAGMA table_info(%s)"%self.name)
+		return cur.fetchall()
+
+	def analyze(self)	: 
+		""" Perform the analysis """
+		print "Analyzing %s"%(self.name)
+		
+#----------------------------------------------------------------------
+#  Main Script
+#----------------------------------------------------------------------
+
 # Connect to the database
 with lite.connect(dbpath) as con : 
 	# Check SQL version for sanity check
@@ -68,4 +104,11 @@ with lite.connect(dbpath) as con :
 	if TABLE_CREATE : 
 		for tblname in tbls : 
 			create_table(con,cur,tblname)
-		
+
+	if DATA_ANALYZE : 
+		tblnames = map(get_tblname_from_fpath,tbls)
+		for tblname in tblnames : 
+			tbl_analyzer = TableAnalyzer(cur,tblname)
+			tbl_analyzer.analyze()
+	
+					
