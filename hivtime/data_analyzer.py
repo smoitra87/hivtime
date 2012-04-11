@@ -182,7 +182,15 @@ class TableAnalyzer(object) :
 				page.li("Avg %s : %f"%(h,vals.mean()),class_='myitem')
 				page.li("Std %s : %f"%(h,vals.std()),class_='myitem')
 				page.ul.close()
-	
+
+				# Plot histograms
+				if PLOT_AGAIN :
+					pl.figure()
+					pl.hist(vals,40,facecolor='green')
+					figpath = "figs/"+self.name+"_"+h+".png"
+					pl.savefig(figpath)	
+				page.img(width=400,height=300,alt="HistPlots",\
+					src=figpath)
 
 		#------------------------------------------------------------
 		# Write out results
