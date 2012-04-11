@@ -9,6 +9,12 @@ import os,sys
 import utility as util
 from utility import get_datadir
 import markup
+from operator import itemgetter
+
+import numpy as np
+import pylab as pl
+
+
 
 #----------------------------------------------------------------------
 # Params --------------------------------------------------------------
@@ -25,6 +31,8 @@ tbls = [os.path.join(get_datadir(),tbl) for tbl in tbls]
 # Boolean params
 TABLE_CREATE=False
 DATA_ANALYZE=True
+PLOT_AGAIN=True
+
 
 #----------------------------------------------------------------------
 def parse_table(fpath) : 
@@ -104,15 +112,16 @@ class TableAnalyzer(object) :
 	def analyze(self)	: 
 		""" Perform the analysis """
 		print "Analyzing %s"%(self.name)
-		
+		code_tbl = dict(util.code_tbl)
+	
 		# Set up reporting
 		page = markup.page()
 		title="Analysis for %s"%(self.name)
+		page.h2(title)
 		page.init(title=title)
-		
+
+		#----------------------------------------------------------		
 		page.h4("How many non null elements in every Field?")	
-		# How many non null elements in every field ? 
-		
 		page.ul(class_='mylist')
 		for h in self.header :
 			cur.execute("SELECT COUNT(*) from %s where %s !=''"%\
@@ -120,12 +129,65 @@ class TableAnalyzer(object) :
 			val = cur.fetchone()
 			page.li(h+' : '+str(val[0]),class_='myitem')
 		page.ul.close()
+		
+		#----------------------------------------------------------
+		page.h4("How many non null distinct elements in every field?")
+		page.ul(class_='mylist')
+		for h in self.header :
+			cur.execute(""" SELECT COUNT(*) from (
+					SELECT DISTINCT %s from %s where %s !='')
+				"""%(h,self.name,h))
+			val = cur.fetchone()
+			page.li(h+' : '+str(val[0]),class_='myitem')
+		page.ul.close()
 
-		# How many non null distinct elements in every field ?
 
+		#---------------------------------------------------------
+		page.h4("Analysis of all Numeric fields")
+
+		for h in self.header :
+			if code_tbl[h] not in ('INT','FLOAT') : 
+				continue
+			else : 
+
+				page.h5("Numerical analysis of %s"%h)
+				cur.execute("SELECT %s from %s where %s != ''"%\
+					(h,self.name,h))
+				records = cur.fetchall()
+				vals = map(itemgetter(0),records)
+				
+				# Special cases
+				if h == u'DaysfromSeroconversion' :
+					# All unicode characters are cast as -1
+					page.p("Warning..!!! early, late and \
+						pre-seroconversion are special values")
+					for ii,val in enumerate(vals) : 
+						if val == u'early' : 
+							vals[ii] = 30
+						if val == u'late' :
+							vals[ii] = 1000
+						if val == u'pre-seroconversion' :
+							vals[ii] = -10
+					page.p("Using early=30,late=1000,pre-sero=-10")
+
+				vals = np.array(map(int,vals))
+				
+				if len(vals) == 0  : 
+					page.p("No elements found..!")
+					continue
+	
+				page.ul(Class="mylist")
+				page.li("Max %s : %f"%(h,vals.max()),class_='myitem')
+				page.li("Min %s : %f"%(h,vals.min()),class_='myitem')
+				page.li("Avg %s : %f"%(h,vals.mean()),class_='myitem')
+				page.li("Std %s : %f"%(h,vals.std()),class_='myitem')
+				page.ul.close()
+	
+
+		#------------------------------------------------------------
+		# Write out results
 		with open(self.name+"_report.html",'w') as fout : 
 			fout.write(page.__str__())
-	
 		
 #----------------------------------------------------------------------
 #  Main Script
