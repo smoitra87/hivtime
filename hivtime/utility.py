@@ -4,6 +4,29 @@ This script provides utility functions
 
 import os,sys
 
+code_tbl = [
+	('#','INT'),
+	('PatientCode','TEXT'),
+	('PatientId','TEXT'),
+	('Accession','TEXT'),
+	('Name','TEXT'),
+	('Subtype','TEXT'),
+	('Country','TEXT'),
+	('SamplingYear','INT'),
+	('DaysfromfirstSample','INT'),
+	('FiebigStage','TEXT'),
+	('Daysfromtreatmentend','INT'),
+	('#ofpatienttimepoints','INT'),
+	('Daysfromtreatmentstart','INT'),
+	('DaysfromInfection','INT'),
+	('DaysfromSeroconversion','INT'),
+	('PubmedID','TEXT'),
+	('Start','INT'),
+	('Stop','INT'),
+	('SequenceLength','INT'),
+	('Organism','TEXT')
+]
+
 def get_basedir() :
 	""" Get the base directory of the project"""
 	paths = os.path.split
