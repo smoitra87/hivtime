@@ -31,7 +31,7 @@ tbls = [os.path.join(get_datadir(),tbl) for tbl in tbls]
 # Boolean params
 TABLE_CREATE=False
 DATA_ANALYZE=True
-PLOT_AGAIN=True
+PLOT_AGAIN=False
 
 
 #----------------------------------------------------------------------
@@ -103,6 +103,7 @@ class TableAnalyzer(object) :
 		self.name = tblname
 		self.header_meta = self._get_header_meta()
 		self.header = [h[1] for h in self.header_meta ]
+		self.page = None
 	
 	def _get_header_meta(self) : 
 		""" Get the header metadata """	
@@ -116,6 +117,7 @@ class TableAnalyzer(object) :
 	
 		# Set up reporting
 		page = markup.page()
+		self.page = page
 		title="Analysis for %s"%(self.name)
 		page.h2(title)
 		page.init(title=title)
@@ -184,11 +186,12 @@ class TableAnalyzer(object) :
 				page.ul.close()
 
 				# Plot histograms
+				figpath = "figs/"+self.name+"_"+h+".png"
 				if PLOT_AGAIN :
 					pl.figure()
 					pl.hist(vals,40,facecolor='green')
-					figpath = "figs/"+self.name+"_"+h+".png"
 					pl.savefig(figpath)	
+		
 				page.img(width=400,height=300,alt="HistPlots",\
 					src=figpath)
 
@@ -214,9 +217,24 @@ with lite.connect(dbpath) as con :
 			create_table(con,cur,tblname)
 
 	if DATA_ANALYZE : 
+		
 		tblnames = map(get_tblname_from_fpath,tbls)
+
+		# create the index page 
+		page = markup.page()
+		page.init(title="Index page")		
+		page.h2("Index")
+		for tblname in tblnames : 
+			page.a(tblname+" Report",href=tblname+"_report.html")
+			page.br()
+		with open("index.html",'w')	 as fout : 
+			fout.write(page.__str__())
+
+	
+		
 		for tblname in tblnames : 
 			tbl_analyzer = TableAnalyzer(cur,tblname)
 			tbl_analyzer.analyze()
+
 	
 					
