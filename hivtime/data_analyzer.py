@@ -163,17 +163,25 @@ class TableAnalyzer(object) :
 					# All unicode characters are cast as -1
 					page.p("Warning..!!! early, late and \
 						pre-seroconversion are special values")
+			
+					nearly,nlate,npre=0,0,0
 					for ii,val in enumerate(vals) : 
 						if val == u'early' : 
 							vals[ii] = 30
+							nearly += 1
 						if val == u'late' :
 							vals[ii] = 1000
+							nlate += 1
 						if val == u'pre-seroconversion' :
 							vals[ii] = -10
+							npre += 1
 					page.p("Using early=30,late=1000,pre-sero=-10")
+					page.p("n_early=%d,nlate=%d,npre=%d"%\
+						(nearly,nlate,npre))
 
 				vals = np.array(map(int,vals))
-				
+				page.p("Number of elements in field : %s"%(len(vals)))			
+	
 				if len(vals) == 0  : 
 					page.p("No elements found..!")
 					continue
