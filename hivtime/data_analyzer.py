@@ -13,7 +13,7 @@ from operator import itemgetter
 
 import numpy as np
 import pylab as pl
-
+from Bio import Entrez
 
 
 #----------------------------------------------------------------------
@@ -55,6 +55,50 @@ def parse_table(fpath) :
 
 	return header,records
 	
+
+def find_fname_from_path(fpath) :
+	""" Given a fname in a path format returns the filename """
+	fname = os.path.split(fpath)[1]
+	tblname = os.path.splitext(fname)[0]
+	return tblname
+
+def create_pubmed_table(con,cur,tblname,tbls) : 
+	"""  Fill a a table called pub which contains patient ids and the 
+	corresponding abstrcts for each of the patients. """
+	cur.execute('DROP TABLE IF EXISTS %s'%(tblname))	
+
+	# Extract table names from table list
+	tbl_list  = map(get_tblname_from_fpath,tbls)	
+
+	# Create table with header
+	cmd = 'CREATE TABLE pub(PubmedID TEXT,Title TEXT)'
+	cur.execute(cmd)
+	
+	# Extract all the pubmedids from the tables
+	cmd_str ="SELECT DISTINCT pubmedid FROM %s WHERE pubmedid != ''"; 
+	def gen_cmd(cmd_str,tbl_list) :
+		for tbl in tbl_list : 
+			yield cmd_str%(tbl)
+	cmd =  " UNION ".join(gen_cmd(cmd_str,tbl_list))
+	cur.execute(cmd)
+	pubmedids = map(itemgetter(0),cur.fetchall())
+	
+
+	# Get the abstracts from NCBI
+	# Executing Pubmed Call
+	print("Executing Entrez call to get titles for pubmedids")
+	Entrez.email = "smoitra@cs.cmu.edu"	
+	handle = Entrez.esummary(db="pubmed",id=','.join(pubmedids))
+	records = Entrez.read(handle)
+
+	for record in records  : 
+		pmid  = record['Id']
+		title = record['Title']
+		cmd = "INSERT INTO pub VALUES('%s','%s')"%(pmid,title)
+		cur.execute(cmd)
+		
+	con.commit()
+
 
 def create_table(con,cur,fpath) :
 	# Get the name of the table from the file name
@@ -223,6 +267,11 @@ with lite.connect(dbpath) as con :
 	if TABLE_CREATE : 
 		for tblname in tbls : 
 			create_table(con,cur,tblname)
+		
+		# Get the pubmed ids for patients
+		tblname = 'pub'
+		
+		create_pubmed_table(con,cur,tblname,tbls)
 
 	if DATA_ANALYZE : 
 		
