@@ -31,7 +31,7 @@ tbls = [os.path.join(get_datadir(),tbl) for tbl in tbls]
 # Boolean params
 TABLE_CREATE=True
 DATA_ANALYZE=True
-PLOT_AGAIN=False
+PLOT_AGAIN=True
 QUERY_NCBI=False
 
 #----------------------------------------------------------------------
@@ -255,6 +255,7 @@ class TableAnalyzer(object) :
 		cur.execute(cmd)
 		patientcodes = cur.fetchall()
 		patientcodes = map(itemgetter(0),patientcodes)
+		self.pcodes = patientcodes;
 		# Initialize a dictionary of patientcodes	
 		pdict = {}
 
@@ -270,6 +271,8 @@ class TableAnalyzer(object) :
 		head_list.append("PatientCodes")
 		head_list.extend(["Count_"+h for h in self.header])
 
+
+		page.h4("Summary of patientwise data")
 		cmd_str = ",".join(["count(distinct %s)"%(h) for h in \
 					self.header])
 		cmd_str = "SELECT patientcode,"+cmd_str+" FROM %s GROUP BY \
@@ -284,6 +287,69 @@ class TableAnalyzer(object) :
 	
 		# Tabulate the Field count results
 		make_table(page,pdict.values(),header=head_list) 
+
+		#------------------------------------------------------------
+		# Patient wise pubmedids and abstracts of papers
+		cmd_str = """SELECT DISTINCT patientcode, pub.pubmedid, title 
+			FROM %s INNER JOIN pub on %s.pubmedid = pub.pubmedid ORDER BY
+			patientcode;
+		"""%(self.name,self.name)	
+		cur.execute(cmd_str)
+		rows = cur.fetchall()
+			
+		page.h4("Patients and Publications")
+		header_list = ["PatientCode","Pubmedid","Title"]
+		make_table(page,rows,header=header_list)
+
+
+		#------------------------------------------------------------
+		# Patientwise Time related plots by seroconversion
+
+		if PLOT_AGAIN : 			
+
+			page.h2("Plot of Patientwise Time data")
+			time_vars = [
+				'DaysfromfirstSample'
+				'DaysfromInfection'
+				'DaysfromSeroconversion'
+			]
+			time_v = 'DaysfromSeroconversion'
+			for pat in self.pcodes : 
+				# Filter sequences belonging to multiple publications
+				cmd_str = """SELECT DISTINCT patientcode,accession,%s
+					FROM %s WHERE patientcode='%s'
+					""" %(time_v,self.name,pat)
+				cur.execute(cmd_str)
+				rows = cur.fetchall()
+				filt_None = lambda(x) : x is not None
+				days = filter(filt_None,map(itemgetter(2),rows))
+				
+				if len(days) == 0  : 
+					page.img(width=400,height=300,alt="HistPlots",\
+						src="figs/dummy.gif")
+					continue;
+
+				for ii,val in enumerate(days) : 
+					if val == u'early' : 
+						days[ii] = 30
+					if val == u'late' :
+						days[ii] = 1000
+					if val == u'pre-seroconversion' :
+						days[ii] = -10
+
+				days = np.array(days)
+	
+				figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
+				pl.figure()
+				pl.hist(days,40,facecolor='green')
+				pl.savefig(figpath)	
+	
+				page.img(width=400,height=300,alt="HistPlots",\
+					src=figpath)
+
+				#assert False	
+
+
 
 		#------------------------------------------------------------
 		# Write out results
