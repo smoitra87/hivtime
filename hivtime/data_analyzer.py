@@ -75,7 +75,7 @@ def create_pubmed_table(con,cur,tblname,tbls) :
 	cur.execute(cmd)
 	
 	# Extract all the pubmedids from the tables
-	cmd_str ="SELECT DISTINCT pubmedid FROM %s WHERE pubmedid != ''"; 
+	cmd_str ="SELECT DISTINCT pubmedid FROM %s WHERE pubmedid is not null"; 
 	def gen_cmd(cmd_str,tbl_list) :
 		for tbl in tbl_list : 
 			yield cmd_str%(tbl)
@@ -170,7 +170,7 @@ class TableAnalyzer(object) :
 		page.h4("How many non null elements in every Field?")	
 		page.ul(class_='mylist')
 		for h in self.header :
-			cur.execute("SELECT COUNT(*) from %s where %s !=''"%\
+			cur.execute("SELECT COUNT(*) from %s where %s is not null"%\
 				(self.name,h))
 			val = cur.fetchone()
 			page.li(h+' : '+str(val[0]),class_='myitem')
@@ -181,7 +181,7 @@ class TableAnalyzer(object) :
 		page.ul(class_='mylist')
 		for h in self.header :
 			cur.execute(""" SELECT COUNT(*) from (
-					SELECT DISTINCT %s from %s where %s !='')
+					SELECT DISTINCT %s from %s where %s is not null)
 				"""%(h,self.name,h))
 			val = cur.fetchone()
 			page.li(h+' : '+str(val[0]),class_='myitem')
@@ -197,7 +197,7 @@ class TableAnalyzer(object) :
 			else : 
 
 				page.h5("Numerical analysis of %s"%h)
-				cur.execute("SELECT %s from %s where %s != ''"%\
+				cur.execute("SELECT %s from %s where %s is not null"%\
 					(h,self.name,h))
 				records = cur.fetchall()
 				vals = map(itemgetter(0),records)
@@ -277,7 +277,7 @@ class TableAnalyzer(object) :
 
 		for h in self.header :
 			cmd = "SELECT COUNT(*) FROM (SELECT %s from %s " \
-				+ "where %s!='')"
+				+ "where %s is not null)"
 			cmd = cmd % (h,self.name,h)
 #			cur.execute(cmd)
 #			num_elem = cur.fetchone()[0]
