@@ -254,19 +254,45 @@ class TableAnalyzer(object) :
 		cmd = "SELECT DISTINCT PatientCode from %s"%(self.name)	
 		cur.execute(cmd)
 		patientcodes = cur.fetchall()
-	
+		patientcodes = map(itemgetter(0),patientcodes)
+		# Initialize a dictionary of patientcodes	
+		pdict = {}
+
+		# List of headers to go on html page
+		head_list = []
+
 		page.hr()
 		page.h2("Patient Wise analysis from %s"%(self.name))
 
-		# For each of the patient codes run the patient analyzer
-		for pcode in patientcodes : 
-			self._analyze_patient(pcode,page,con,cur)	
+		#-------------------------------------------------------------
+		# Get counts of fields patientwise
+		
+		head_list.append("PatientCodes")
+		head_list.extend(["Count_"+h for h in self.header])
+
+		cmd_str = ",".join(["count(distinct %s)"%(h) for h in \
+					self.header])
+		cmd_str = "SELECT patientcode,"+cmd_str+" FROM %s GROUP BY \
+				patientcode"%(self.name)
+		cur.execute(cmd_str)
+		counts = cur.fetchall()	
+		for pat_count in counts :
+			try : 
+				pdict[pat_count[0]].extend(pat_count) 
+			except KeyError : 
+				pdict[pat_count[0]] = list(pat_count)
+	
+		# Tabulate the Field count results
+		make_table(page,pdict.values(),header=head_list) 
 
 		#------------------------------------------------------------
 		# Write out results
 		with open(self.name+"_report.html",'w') as fout : 
 			fout.write(page.__str__())
-	
+
+		
+
+
 	def _analyze_patient(self,pcode,page,con,cur) : 
 		""" Analyze patient records """
 		
