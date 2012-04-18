@@ -29,10 +29,10 @@ tbls = ['p24.tbl','full_genome.tbl']
 tbls = [os.path.join(get_datadir(),tbl) for tbl in tbls]
 
 # Boolean params
-TABLE_CREATE=False
+TABLE_CREATE=True
 DATA_ANALYZE=True
 PLOT_AGAIN=False
-
+QUERY_NCBI=False
 
 #----------------------------------------------------------------------
 def parse_table(fpath) : 
@@ -99,7 +99,6 @@ def create_pubmed_table(con,cur,tblname,tbls) :
 		
 	con.commit()
 
-
 def create_table(con,cur,fpath) :
 	# Get the name of the table from the file name
 	fname = os.path.split(fpath)[1]
@@ -116,7 +115,8 @@ def create_table(con,cur,fpath) :
 
 	# Populate the table
 	for record in records :
-		values = ','.join(['\''+r+'\'' for r in record])
+		check_null = lambda(x): x == '' and 'null' or '\''+x+'\''
+		values = ','.join([check_null(r) for r in record])
 		cur.execute("INSERT INTO %s VALUES (%s)"%(tblname,values))
 		
 
@@ -248,10 +248,45 @@ class TableAnalyzer(object) :
 					src=figpath)
 
 		#------------------------------------------------------------
+		# Perform PatientWise Analysis
+	
+		# Get all the patient codes
+		cmd = "SELECT DISTINCT PatientCode from %s"%(self.name)	
+		cur.execute(cmd)
+		patientcodes = cur.fetchall()
+	
+		page.hr()
+		page.h2("Patient Wise analysis from %s"%(self.name))
+
+		# For each of the patient codes run the patient analyzer
+		for pcode in patientcodes : 
+			self._analyze_patient(pcode,page,con,cur)	
+
+		#------------------------------------------------------------
 		# Write out results
 		with open(self.name+"_report.html",'w') as fout : 
 			fout.write(page.__str__())
+	
+	def _analyze_patient(self,pcode,page,con,cur) : 
+		""" Analyze patient records """
 		
+		#-------------------------------------------------------------
+		# Patient has field ?
+		
+		f_count = [0]* len(self.header)
+
+		for h in self.header :
+			cmd = "SELECT COUNT(*) FROM (SELECT %s from %s " \
+				+ "where %s!='')"
+			cmd = cmd % (h,self.name,h)
+#			cur.execute(cmd)
+#			num_elem = cur.fetchone()[0]
+#			f_count = num_elem
+#			print h, f_count	
+			
+		
+		
+
 #----------------------------------------------------------------------
 #  Main Script
 #----------------------------------------------------------------------
@@ -268,9 +303,10 @@ with lite.connect(dbpath) as con :
 		for tblname in tbls : 
 			create_table(con,cur,tblname)
 		
+
+	if QUERY_NCBI :	
 		# Get the pubmed ids for patients
 		tblname = 'pub'
-		
 		create_pubmed_table(con,cur,tblname,tbls)
 
 	if DATA_ANALYZE : 
@@ -286,8 +322,6 @@ with lite.connect(dbpath) as con :
 			page.br()
 		with open("index.html",'w')	 as fout : 
 			fout.write(page.__str__())
-
-	
 		
 		for tblname in tblnames : 
 			tbl_analyzer = TableAnalyzer(cur,tblname)
