@@ -29,9 +29,9 @@ tbls = ['p24.tbl','full_genome.tbl']
 tbls = [os.path.join(get_datadir(),tbl) for tbl in tbls]
 
 # Boolean params
-TABLE_CREATE=True
+TABLE_CREATE=False
 DATA_ANALYZE=True
-PLOT_AGAIN=True
+PLOT_AGAIN=False
 QUERY_NCBI=False
 
 #----------------------------------------------------------------------
@@ -138,7 +138,6 @@ def make_table(page,rows,header=None) :
 		page.td(row)
 		page.tr.close()
 	page.table.close()
-
 
 class TableAnalyzer(object) : 
 	""" Performs analysis on tables """	
@@ -248,6 +247,27 @@ class TableAnalyzer(object) :
 					src=figpath)
 
 		#------------------------------------------------------------
+		# Write out results
+		with open(self.name+"_report.html",'w') as fout : 
+			fout.write(page.__str__())
+
+class PatientTableAnalyzer(TableAnalyzer) : 
+	""" Performs Patientwise analysis and create tables """
+	def __init__(self,cur,tblname) : 
+		""" Call the parent constructor class"""
+		super(PatientTableAnalyzer,self).__init__(cur,tblname)
+
+	def	analyze(self) :
+		""" Analyze patient data"""
+		code_tbl = dict(util.code_tbl)
+	
+		# Set up reporting
+		page = markup.page()
+		self.page = page
+		title="Patientwise Analysis for %s"%(self.name)
+		page.h2(title)
+		page.init(title=title)
+		#------------------------------------------------------------
 		# Perform PatientWise Analysis
 	
 		# Get all the patient codes
@@ -271,7 +291,6 @@ class TableAnalyzer(object) :
 		head_list.append("PatientCodes")
 		head_list.extend(["Count_"+h for h in self.header])
 
-
 		page.h4("Summary of patientwise data")
 		cmd_str = ",".join(["count(distinct %s)"%(h) for h in \
 					self.header])
@@ -279,7 +298,7 @@ class TableAnalyzer(object) :
 				patientcode"%(self.name)
 		cur.execute(cmd_str)
 		counts = cur.fetchall()	
-		for pat_count in counts :
+		for 	pat_count in counts :
 			try : 
 				pdict[pat_count[0]].extend(pat_count) 
 			except KeyError : 
@@ -300,7 +319,6 @@ class TableAnalyzer(object) :
 		page.h4("Patients and Publications")
 		header_list = ["PatientCode","Pubmedid","Title"]
 		make_table(page,rows,header=header_list)
-
 
 		#------------------------------------------------------------
 		# Patientwise Time related plots by seroconversion
@@ -343,41 +361,17 @@ class TableAnalyzer(object) :
 				pl.figure()
 				pl.hist(days,40,facecolor='green')
 				pl.savefig(figpath)	
-	
-				page.img(width=400,height=300,alt="HistPlots",\
-					src=figpath)
-
-				#assert False	
-
-
+			
+		for pat in self.pcodes : 
+			time_v = 'DaysfromSeroconversion'
+			figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
+			page.img(width=400,height=300,alt="HistPlots",\
+				src=figpath)
 
 		#------------------------------------------------------------
 		# Write out results
-		with open(self.name+"_report.html",'w') as fout : 
+		with open(self.name+"_pat_report.html",'w') as fout : 
 			fout.write(page.__str__())
-
-		
-
-
-	def _analyze_patient(self,pcode,page,con,cur) : 
-		""" Analyze patient records """
-		
-		#-------------------------------------------------------------
-		# Patient has field ?
-		
-		f_count = [0]* len(self.header)
-
-		for h in self.header :
-			cmd = "SELECT COUNT(*) FROM (SELECT %s from %s " \
-				+ "where %s is not null)"
-			cmd = cmd % (h,self.name,h)
-#			cur.execute(cmd)
-#			num_elem = cur.fetchone()[0]
-#			f_count = num_elem
-#			print h, f_count	
-			
-		
-		
 
 #----------------------------------------------------------------------
 #  Main Script
@@ -412,12 +406,14 @@ with lite.connect(dbpath) as con :
 		for tblname in tblnames : 
 			page.a(tblname+" Report",href=tblname+"_report.html")
 			page.br()
+			page.a("Patientwise"+tblname+" Report",\
+				href=tblname+"_pat_report.html")
+			page.br()
 		with open("index.html",'w')	 as fout : 
 			fout.write(page.__str__())
 		
 		for tblname in tblnames : 
 			tbl_analyzer = TableAnalyzer(cur,tblname)
 			tbl_analyzer.analyze()
-
-	
-					
+			pat_tbl_analyzer = PatientTableAnalyzer(cur,tblname)	
+			pat_tbl_analyzer.analyze()
