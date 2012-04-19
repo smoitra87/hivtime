@@ -349,7 +349,7 @@ class PatientTableAnalyzer(TableAnalyzer) :
 					page.img(width=400,height=300,alt="HistPlots",\
 						src="figs/dummy.gif")
 					figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
-					os.system("cp figs/dummy.gif "+figpath1)
+					os.system("cp figs/dummy.gif "+figpath)
 					continue;
 
 				for ii,val in enumerate(days) : 
