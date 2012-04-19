@@ -64,6 +64,7 @@ def find_fname_from_path(fpath) :
 	tblname = os.path.splitext(fname)[0]
 	return tblname
 
+			
 def create_pubmed_table(con,cur,tblname,tbls) : 
 	"""  Fill a a table called pub which contains patient ids and the 
 	corresponding abstrcts for each of the patients. """
@@ -244,6 +245,7 @@ class TableAnalyzer(object) :
 					pl.figure()
 					pl.hist(vals,40,facecolor='green')
 					pl.savefig(figpath)	
+					pl.close()
 		
 				page.img(width=400,height=300,alt="HistPlots",\
 					src=figpath)
@@ -325,58 +327,86 @@ class PatientTableAnalyzer(TableAnalyzer) :
 		#------------------------------------------------------------
 		# Patientwise Time related plots by seroconversion
 		time_vars = [
-			'DaysfromfirstSample'
-			'DaysfromInfection'
+			'DaysfromfirstSample',
+			'DaysfromInfection',
 			'DaysfromSeroconversion'
 		]
-		time_v = 'DaysfromSeroconversion'
-
-		if PLOT_AGAIN : 			
-
-			page.h2("Plot of Patientwise Time data")
-
-			for pat in self.pcodes : 
-				# Filter sequences belonging to multiple publications
-				cmd_str = """SELECT DISTINCT patientcode,accession,%s  
-					FROM %s WHERE patientcode='%s'
-					""" %(time_v,self.name,pat)
-				cur.execute(cmd_str)
-				rows = cur.fetchall()
-				filt_None = lambda(x) : x is not None
-				days = filter(filt_None,map(itemgetter(2),rows))
-				
-				if len(days) == 0  : 
-					page.img(width=400,height=300,alt="HistPlots",\
-						src="figs/dummy.gif")
-					figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
-					os.system("cp figs/dummy.gif "+figpath)
-					continue;
-
-				for ii,val in enumerate(days) : 
-					if val == u'early' : 
-						days[ii] = 30
-					if val == u'late' :
-						days[ii] = 1000
-					if val == u'pre-seroconversion' :
-						days[ii] = -10
-
-				days = np.array(days)
-	
-				figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
-				pl.figure()
-				pl.hist(days,40,facecolor='green')
-				pl.savefig(figpath)	
 		
-		page.hr()
-		page.h2("Histogram plots of Patientwise %s"%(time_v))
-		self._plot_time_hist()			
+		for time_v in time_vars : 
+			page.hr()
+			
+			p_str  ="Histogram plots of Patientwise %s"%(time_v) 
+			page.h2(p_str)
+			
+			if PLOT_AGAIN : 
+				# Generate the tables
+				self._plot_time(cur,time_v)
+						
+			# Write the tables
+			self._write_time_hist(time_v)			
 
 		#------------------------------------------------------------
 		# Write out results
 		with open(self.name+"_pat_report.html",'w') as fout : 
 			fout.write(page.__str__())
+
+	def _plot_time(self,cur,time_v) :
+		""" 
+			Plot time related distributions for patientwise data
+		"""
+		page = self.page
+
+		for pat in self.pcodes : 
+			# Filter sequences belonging to multiple publications
+			cmd_str = """SELECT DISTINCT patientcode,accession,%s  
+				FROM %s WHERE patientcode='%s'
+				""" %(time_v,self.name,pat)
+			cur.execute(cmd_str)
+			rows = cur.fetchall()
+			filt_None = lambda(x) : x is not None
+			days = filter(filt_None,map(itemgetter(2),rows))
+			
+			figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
+			# No elements in days
+			if len(days) == 0  : 
+				pl.figure()
+				pl.text(0,0,"No data available",color="blue",\
+					fontsize=20)
+				pl.xlim(-3,6)
+				pl.ylim(-3,3)
+				pl.savefig(figpath)
+				pl.close()
+				continue;
+
+			# Only one kind of data
+			if len(set(days)) == 1 :
+				pl.figure()
+				pl.text(0,0,"Only "+str(days[0]),color="blue",\
+					fontsize=20)
+				pl.xlim(-3,6)
+				pl.ylim(-3,3)
+				pl.savefig(figpath)
+				pl.close()
+				continue;
+
+			for ii,val in enumerate(days) : 
+				if val == u'early' : 
+					days[ii] = 30
+				if val == u'late' :
+					days[ii] = 1000
+				if val == u'pre-seroconversion' :
+					days[ii] = -10
+
+			days = np.array(days)
+
+			figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
+			pl.figure()
+			pl.hist(days,40,facecolor='green')
+			pl.savefig(figpath)	
+			pl.close()	
 	
-	def _plot_time_hist(self) : 
+	
+	def _write_time_hist(self,time_v) : 
 		""" Make histogram plots 
 		This counts the number of patients there are and puts only 
 		5 patients in each row. 
@@ -384,7 +414,6 @@ class PatientTableAnalyzer(TableAnalyzer) :
 		"""
 		page = self.page
 		n_per_row = 4
-		time_v = 'DaysfromSeroconversion'
 
 		page.table(_class="image")
 		n_rows = int(math.ceil((0.0 +len(self.pcodes))/n_per_row))
