@@ -10,6 +10,8 @@ import utility as util
 from utility import get_datadir
 import markup
 from operator import itemgetter
+import math
+
 
 import numpy as np
 import pylab as pl
@@ -322,19 +324,20 @@ class PatientTableAnalyzer(TableAnalyzer) :
 
 		#------------------------------------------------------------
 		# Patientwise Time related plots by seroconversion
+		time_vars = [
+			'DaysfromfirstSample'
+			'DaysfromInfection'
+			'DaysfromSeroconversion'
+		]
+		time_v = 'DaysfromSeroconversion'
 
 		if PLOT_AGAIN : 			
 
 			page.h2("Plot of Patientwise Time data")
-			time_vars = [
-				'DaysfromfirstSample'
-				'DaysfromInfection'
-				'DaysfromSeroconversion'
-			]
-			time_v = 'DaysfromSeroconversion'
+
 			for pat in self.pcodes : 
 				# Filter sequences belonging to multiple publications
-				cmd_str = """SELECT DISTINCT patientcode,accession,%s
+				cmd_str = """SELECT DISTINCT patientcode,accession,%s  
 					FROM %s WHERE patientcode='%s'
 					""" %(time_v,self.name,pat)
 				cur.execute(cmd_str)
@@ -345,6 +348,8 @@ class PatientTableAnalyzer(TableAnalyzer) :
 				if len(days) == 0  : 
 					page.img(width=400,height=300,alt="HistPlots",\
 						src="figs/dummy.gif")
+					figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
+					os.system("cp figs/dummy.gif "+figpath1)
 					continue;
 
 				for ii,val in enumerate(days) : 
@@ -361,17 +366,43 @@ class PatientTableAnalyzer(TableAnalyzer) :
 				pl.figure()
 				pl.hist(days,40,facecolor='green')
 				pl.savefig(figpath)	
-			
-		for pat in self.pcodes : 
-			time_v = 'DaysfromSeroconversion'
-			figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
-			page.img(width=400,height=300,alt="HistPlots",\
-				src=figpath)
+		
+		page.hr()
+		page.h2("Histogram plots of Patientwise %s"%(time_v))
+		self._plot_time_hist()			
 
 		#------------------------------------------------------------
 		# Write out results
 		with open(self.name+"_pat_report.html",'w') as fout : 
 			fout.write(page.__str__())
+	
+	def _plot_time_hist(self) : 
+		""" Make histogram plots 
+		This counts the number of patients there are and puts only 
+		5 patients in each row. 
+		
+		"""
+		page = self.page
+		n_per_row = 4
+		time_v = 'DaysfromSeroconversion'
+
+		page.table(_class="image")
+		n_rows = int(math.ceil((0.0 +len(self.pcodes))/n_per_row))
+		for ii in range(n_rows) : 
+			pcodes_row = self.pcodes[ii*n_per_row:(ii+1)*n_per_row]
+			page.tr()
+			for pat in pcodes_row : 
+				page.td()
+				figpath = "figs/pat_"+pat+"_"+time_v+"_"+".png"
+				page.img(width=400,hieght=300,src=figpath)
+				page.td.close()
+			page.tr.close()
+			page.tr()
+			page.td([p for p in pcodes_row],class_="caption")	
+			page.tr.close()
+		page.table.close()	
+
+
 
 #----------------------------------------------------------------------
 #  Main Script
