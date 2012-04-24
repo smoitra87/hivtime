@@ -48,6 +48,9 @@ class SeqAnalyzer(object)  :
 	def analyze(self) : 
 		""" Analyze all the sequences """
 		print("Currently Analyzing %s"%(self.name))
+		
+		# Find patients who have enough time data
+		self.find_time_pids() 
 
 
 	def _get_header_meta(self) : 
@@ -66,8 +69,31 @@ class SeqAnalyzer(object)  :
 		"""
 Read the db to get patient ids of patients that have reasonable amount
 of time series information
+
+# Criteria to use ??
+Patients who have atleast 4 time points any field of the 5 discriminating fields
 		"""
-		cmd_str = "SELECT * from "
+		cur = self.cur
+		n_filter = 2
+		for iter_filter in range(n_filter,n_filter+15) : 
+			cmd_str = "DROP TABLE IF EXISTS dummy1"
+			cur.execute(cmd_str)
+			cmd_str = "CREATE TABLE dummy1 AS SELECT patientcode,A,B,C,D,E \
+	FROM (SELECT \
+	 patientcode,COUNT(DISTINCT daysFROMfirstsample) AS A, \
+	COUNT(DISTINCT daysFROMinfection) AS B, COUNT(DISTINCT \
+	daysFROMseroconversion) AS C,COUNT(DISTINCT samplingyear) AS D,\
+	COUNT(DISTINCT fiebigstage) AS E FROM p24 GROUP BY patientcode) \
+	where A>=%d OR B>=%d OR C>=%d OR D>=%d OR E>=%d ;"%\
+				((iter_filter,)*5)
+			cur.execute(cmd_str)
+			cmd_str = "SELECT count(patientcode) from dummy1"
+			cur.execute(cmd_str)
+			count_pats = cur.fetchone()[0]
+			print("The number of patients satisfying %d criteria=%d"%\
+					(iter_filter,count_pats))
+		
+
 
 #-----------------------------------------------------------------------
 # Main Script
