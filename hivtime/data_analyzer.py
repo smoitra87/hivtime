@@ -469,6 +469,10 @@ with lite.connect(dbpath) as con :
 			page.a("Patientwise"+tblname+" Report",\
 				href=tblname+"_pat_report.html")
 			page.br()
+
+		page.hr()
+		page.a("Patient Sequence Visualization",href="index_viz.html")
+
 		with open("index.html",'w')	 as fout : 
 			fout.write(page.__str__())
 		

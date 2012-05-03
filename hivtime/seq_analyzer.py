@@ -16,7 +16,7 @@ from Bio import Motif
 from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
 from Bio.Align import AlignInfo
-
+import markup
 
 import utility as util
 
@@ -35,6 +35,7 @@ tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
+EXEC_JALVIEW = False
 
 #----------------------------------------------------------------------
 # Scripts
@@ -57,24 +58,55 @@ class SeqAnalyzer(object)  :
 			'FiebigStage','DaysfromInfection','DaysfromSeroconversion')
 		self.pcodes_time = None
 		self.pat_obj = None
+		self.page = None
 
 	def analyze(self) : 
 		""" Analyze all the sequences """
 		print("Currently Analyzing %s"%(self.name))
-		
+	
+		# Set up reporting
+		page = markup.page()
+		self.page = page
+		title = "Index for Visualizations"
+		page.h2(title)
+		page.init(title=title)
+
+		#--------------------------------------------------------------	
 		# Find patients who have enough time data
 		self.pcodes_time = self._find_time_pids()
 
+		
+		#--------------------------------------------------------------
 		# For every patient create an alignment object and process 
+
 		for pcode in ['PIC83747','CAP229'] : 
 			self._process_pcode(pcode)
+
+		# Fill in the index elements
+		page.hr()
+		page.h3("Full Capsid Sequence Alignment")
+		for pcode in self.pcodes_time : 
+			page.a("%s p24 Alignment"%(pcode),\
+				href="../data/images/%s_seq.html"%(pcode))	
+			page.br()
+
+		page.hr()
+		page.h3("Full Capsid Changes Visualization Alignment")
+		for pcode in self.pcodes_time : 
+			page.a("%s p24 Visualization"%(pcode),\
+				href="../data/images/%s_viz.html"%(pcode))	
+			page.br()
+
+		with open("index_viz.html","w") as fout :
+			fout.write(page.__str__())
 
 	
 	def _process_pcode(self,pcode) : 
 		""" Process every patient code"""
 		self.pat_obj = PatientAlignment(pcode)
 		self.pat_obj.write_aln()
-		self.pat_obj.print_jalview()
+		if EXEC_JALVIEW :
+			self.pat_obj.print_jalview()
  
 		
 	def _get_header_meta(self) : 
