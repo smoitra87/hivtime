@@ -4,7 +4,7 @@
 
 import sys,os,pdb
 from operator import itemgetter
-import copy
+import copy,glob
 
 import numpy as np
 import pylab as pl
@@ -79,7 +79,11 @@ class SeqAnalyzer(object)  :
 		#--------------------------------------------------------------
 		# For every patient create an alignment object and process 
 
-		for pcode in ['PIC83747','CAP229'] : 
+		avl_files = glob.glob(os.path.join(datadir,"*gag.fasta"))
+		avl_files = [os.path.split(f)[1] for f in avl_files]
+		pcodes_avl = [f.split('_gag.fasta')[0] for f in avl_files]
+
+		for pcode in pcodes_avl : 
 			self._process_pcode(pcode)
 
 		# Fill in the index elements
