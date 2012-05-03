@@ -4,6 +4,7 @@
 
 import sys,os,pdb
 from operator import itemgetter
+import copy
 
 import numpy as np
 import pylab as pl
@@ -14,6 +15,8 @@ from Bio import SeqIO
 from Bio import Motif
 from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
+from Bio.Align import AlignInfo
+
 
 import utility as util
 
@@ -21,6 +24,8 @@ import utility as util
 # Constants and definitions
 dbpath = 'hivtime.db' 
 datadir = util.get_datadir()
+JALVIEW_DIR = "/home/subhodeep/Jalview"
+
 
 dbname = 'hivtime.db'
 dbpath = os.path.join(util.get_datadir(),dbname)
@@ -61,14 +66,15 @@ class SeqAnalyzer(object)  :
 		self.pcodes_time = self._find_time_pids()
 
 		# For every patient create an alignment object and process 
-		for pcode in ['PIC83747'] : 
+		for pcode in ['PIC83747','CAP229'] : 
 			self._process_pcode(pcode)
 
 	
 	def _process_pcode(self,pcode) : 
 		""" Process every patient code"""
 		self.pat_obj = PatientAlignment(pcode)
-		
+		self.pat_obj.write_aln()
+		self.pat_obj.print_jalview()
  
 		
 	def _get_header_meta(self) : 
@@ -164,7 +170,7 @@ Pick timeforsero > timeinfec > dayssample > fiebig > sampling year
 		return pcodes_time
 
 class PatientAlignment(object) :
-	""" """
+	"""Creates an alignment of patient sequences """
 	def __init__(self,pat_code) :
 		self.pcode = pat_code
 		self.FLAG_FETCH_ALN = FETCH_ALN
@@ -173,7 +179,9 @@ class PatientAlignment(object) :
 		self.fpath = os.path.join(datadir,self.fname)
 		self._p24_start = 'PIVQN'
 		self._p24_end = 'KARVL'
-		self._load_aln()		
+		self._load_aln()
+		self.consensus = self._get_consensus()
+		self._create_viz_aln()
 
 	def _load_aln(self) :
 		""" Load the alignment 
@@ -213,8 +221,58 @@ otherwise force a download of the alignment using browser automation
 			len(self._p24_end)]
 		print "Capsid alignment length is %d"%\
 			(self.aln.get_alignment_length())
-	
 
+	def _get_consensus(self) :
+		""" Find the consensus sequence for the alignment """
+		aln_info = AlignInfo.SummaryInfo(self.aln)
+		return aln_info.gap_consensus(threshold=0.7)
+
+	def _create_viz_aln(self) : 
+		""" Create an alignment for visualization purposes showing only those positions which are changing """
+		aln_viz = copy.deepcopy(self.aln)
+		
+		def f1(zip_tuple) :
+			""" Compare two aa. If they are the same then replace by .
+else return aa_aln
+ """		
+			aa_aln,aa_cons = zip_tuple
+			if aa_aln == aa_cons :
+				return '.'
+			else : 
+				return aa_aln
+						
+		for rec in aln_viz : 
+			seq_str = ''.join(map(f1,zip(rec,self.consensus)))		
+			rec.seq = Seq(seq_str)
+
+		fname = self.pcode + '_viz.fasta'
+		fpath = os.path.join(datadir,fname)
+		with open(fpath,"w") as fout : 
+			AlignIO.write([aln_viz],fout,"fasta")	
+
+		return aln_viz
+
+	def write_aln(self,suffix='p24') :
+		""" Write out the current alignment """
+		fname = self.pcode + '_' + suffix + ".fasta"
+		fpath = os.path.join(datadir,fname)
+		with open(fpath,'w') as fout :
+			AlignIO.write([self.aln],fout,"fasta")
+
+	def print_jalview(self) : 
+		""" Print out an html page containing images"""
+		cur_dir = os.getcwd()
+	
+		# Issue command to execute Jalview
+		os.chdir(JALVIEW_DIR)
+		cmd_str = './Jalview -nodisplay -open ~/projects/hivtime/data/%s_viz.fasta -colour zappo -png ~/projects/hivtime/data/images/%s_viz.png -imgMap ~/projects/hivtime/data/images/%s_viz.html'%((self.pcode,)*3)
+		os.system(cmd_str)
+	
+		cmd_str = './Jalview -nodisplay -open ~/projects/hivtime/data/%s_p24.fasta -colour zappo -png ~/projects/hivtime/data/images/%s_seq.png -imgMap ~/projects/hivtime/data/images/%s_seq.html'%((self.pcode,)*3)
+		os.system(cmd_str)
+		
+		os.chdir(cur_dir)
+	
 	def _fix_fasta(self) :
 		""" Read in the fasta file and make some fixes 
 
@@ -230,14 +288,11 @@ Fix 1 : Some of the traling characters gaps are missing. Add them.
 
 		SeqIO.write(records,self.fpath,format="fasta")
 
-
 	def _fetch_aln(self) : 
 		""" Download the alignment using a browser session """
 		print("Did not find %s. Downloading via Browser session..."\
 				%(self.fpath))
 		
-
-
 	def _check_aln_exists(self) :
 		""" Check if the patient file exists """
 		return os.path.isfile(self.fpath)
