@@ -1,8 +1,6 @@
 """
 	visualizes time series patient sequences
-
 """
-
 
 import sys,os,pdb
 from operator import itemgetter
@@ -25,7 +23,8 @@ dbpath = os.path.join(util.get_datadir(),dbname)
 tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
 
-
+# If FETCH_ALN is True, then the alignment is downloaded anyway
+FETCH_ALN = False
 
 #----------------------------------------------------------------------
 # Scripts
@@ -82,7 +81,10 @@ Pick timeforsero > timeinfec > dayssample > fiebig > sampling year
 		cur = self.cur
 		# REMOVEME : Going to work with n_filter = 11 items first for 
 		# debug stage
-		n_filter = 11
+		
+
+		# n_filter=4 retreives about 60 patients
+		n_filter = 4
 		cmd_str = "DROP TABLE IF EXISTS dummy1"
 		cur.execute(cmd_str)
 		field_codes = 'ABCDE'
@@ -144,24 +146,39 @@ Pick timeforsero > timeinfec > dayssample > fiebig > sampling year
 
 		return pcodes_time
 
-#		#DEPRECEATED CODE. REMOVE in future commits
-#		# Retreive all records
-#		cmd_str = "SELECT * FROM dummy1"
-#		cur.execute(cmd_str)
-#		records = cur.fetchall()
-#		filtered_recs = {}
-#		
-#		filt_fn1 = lambda x,field_idx : x[field_idx] >= n_filter
-#		
-#		# Loop through all the fields to find filter criteria
-#		for idx_field in range(1,len(field_codes)+1) : 
-#			filt_fn2 = lambda x : filt_fn1(x,idx_field)
-#			filt_records = filter(filt_fn2,records)
-#			filtered_recs[field_codes[idx_field-1]] = filt_records
-#
-#		# Return patients and the field which has the time info
-					
+class PatientAlignment(object) :
+	""" """
+	def __init__(self,pat_code) :
+		self.pcode = pat_code
+		self.FLAG_FETCH_ALN = FETCH_ALN
+		self.aln = None
 
+	def _load_aln(self) :
+		""" Load the alignment 
+Try to see if the fasta file is already present in the data directory
+otherwise force a download of the alignment using browser automation
+"""
+		if self.FLAG_FETCH_ALN(self) : 
+			self._fetch_aln()
+		else :
+			if not self._check_aln_exists() : 
+				self.aln = self._fetch_aln()
+		
+		self.aln = self._read_aln() 
+
+	def _fetch_aln(self) : 
+		""" Download the alignment using a browser session """
+		pass
+
+
+	def _check_aln_exists(self) :
+		""" Check if the patient file exists """
+		fname = self.pcode+'_gag.fasta'
+		return os.path.isfile(fname)
+	
+	def _cut_aln(self) : 
+		""" Cut the alignment according to p24 dimensions """
+		pass
 
 #-----------------------------------------------------------------------
 # Main Script
