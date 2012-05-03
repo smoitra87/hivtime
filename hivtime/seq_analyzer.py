@@ -9,6 +9,11 @@ import numpy as np
 import pylab as pl
 import sqlite3 as lite
 import Bio
+from Bio import AlignIO
+from Bio import SeqIO
+from Bio import Motif
+from Bio.Alphabet import IUPAC
+from Bio.Seq import Seq
 
 import utility as util
 
@@ -46,13 +51,25 @@ class SeqAnalyzer(object)  :
 		self.time_fields = ('SamplingYear','DaysfromfirstSample',\
 			'FiebigStage','DaysfromInfection','DaysfromSeroconversion')
 		self.pcodes_time = None
+		self.pat_obj = None
 
 	def analyze(self) : 
 		""" Analyze all the sequences """
 		print("Currently Analyzing %s"%(self.name))
 		
 		# Find patients who have enough time data
-		self.pcodes_time = self._find_time_pids() 
+		self.pcodes_time = self._find_time_pids()
+
+		# For every patient create an alignment object and process 
+		for pcode in ['PIC83747'] : 
+			self._process_pcode(pcode)
+
+	
+	def _process_pcode(self,pcode) : 
+		""" Process every patient code"""
+		self.pat_obj = PatientAlignment(pcode)
+		
+ 
 		
 	def _get_header_meta(self) : 
 		""" Get the header metadata """	
@@ -152,29 +169,78 @@ class PatientAlignment(object) :
 		self.pcode = pat_code
 		self.FLAG_FETCH_ALN = FETCH_ALN
 		self.aln = None
+		self.fname = self.pcode+'_gag.fasta'
+		self.fpath = os.path.join(datadir,self.fname)
+		self._p24_start = 'PIVQN'
+		self._p24_end = 'KARVL'
+		self._load_aln()		
 
 	def _load_aln(self) :
 		""" Load the alignment 
 Try to see if the fasta file is already present in the data directory
 otherwise force a download of the alignment using browser automation
 """
-		if self.FLAG_FETCH_ALN(self) : 
+		if self.FLAG_FETCH_ALN: 
 			self._fetch_aln()
 		else :
 			if not self._check_aln_exists() : 
 				self.aln = self._fetch_aln()
+	
+		# Fix the fasta file first
+		self._fix_fasta()
+
+		# Read in the fasta file as a biopython alignment object
+		self.aln = AlignIO.read(open(self.fpath),"fasta")
+		print "Gag Alignment Lenth is %d"% \
+			self.aln.get_alignment_length()
+
+		# Find the start and end of the p24 region
+		m = Motif.Motif(alphabet=IUPAC.protein)
+		m.add_instance(Seq(self._p24_start,m.alphabet))
+		m.add_instance(Seq(self._p24_end,m.alphabet))
+
+		hxb2_seq = self.aln[0].seq # hxb2 seq is always on top
 		
-		self.aln = self._read_aln() 
+		search_res = list(m.search_instances(hxb2_seq))
+		if len(search_res) != 2 : 
+			raise ValueError("Could not find the motifs for pat"\
+				%self.pcode)
+
+		# Cut the p24 region
+		p24_startpos = search_res[0][0]
+		p24_endpos = search_res[1][0]
+		self.aln = self.aln[:, p24_startpos:p24_endpos+\
+			len(self._p24_end)]
+		print "Capsid alignment length is %d"%\
+			(self.aln.get_alignment_length())
+	
+
+	def _fix_fasta(self) :
+		""" Read in the fasta file and make some fixes 
+
+Fix 1 : Some of the traling characters gaps are missing. Add them. 
+
+
+"""
+		records = list(SeqIO.parse(self.fpath,"fasta"))
+		max_len = max([len(rec) for rec in records])
+		for rec in records : 
+			if len(rec) < max_len : 
+				rec.seq = rec.seq + '-'*(max_len-len(rec))
+
+		SeqIO.write(records,self.fpath,format="fasta")
+
 
 	def _fetch_aln(self) : 
 		""" Download the alignment using a browser session """
-		pass
+		print("Did not find %s. Downloading via Browser session..."\
+				%(self.fpath))
+		
 
 
 	def _check_aln_exists(self) :
 		""" Check if the patient file exists """
-		fname = self.pcode+'_gag.fasta'
-		return os.path.isfile(fname)
+		return os.path.isfile(self.fpath)
 	
 	def _cut_aln(self) : 
 		""" Cut the alignment according to p24 dimensions """
