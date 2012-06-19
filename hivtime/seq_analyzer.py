@@ -347,6 +347,7 @@ Fix 1 : Some of the traling characters gaps are missing. Add them.
 		br["value SEQ_SAMple SSAM_postInfect_days 4"] = '*'
 		br["value SEQ_SAMple SSAM_postSeroConv_days 4"] = '*'
 		br["value PATient PAT_code 1 exact"] = self.pcode	
+		br['Genomic Region'] = ['P24']
 		br.submit()
 		br.select_form(nr=1)
 		br.form["INCLUDE_HXB2"] = ['1']
