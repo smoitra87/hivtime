@@ -2,7 +2,7 @@
 	visualizes time series patient sequences
 """
 
-import sys,os,pdb
+import sys,os
 from operator import itemgetter
 import copy,glob
 
@@ -17,6 +17,8 @@ from Bio.Alphabet import IUPAC
 from Bio.Seq import Seq
 from Bio.Align import AlignInfo
 import markup
+import mechanize
+import urlparse
 
 import utility as util
 
@@ -25,7 +27,7 @@ import utility as util
 dbpath = 'hivtime.db' 
 datadir = util.get_datadir()
 JALVIEW_DIR = "/home/subhodeep/Jalview"
-
+LOSDB_URL = "http://www.hiv.lanl.gov/components/sequence/HIV/search/search.html"
 
 dbname = 'hivtime.db'
 dbpath = os.path.join(util.get_datadir(),dbname)
@@ -34,8 +36,8 @@ tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
-FETCH_ALN = False
-EXEC_JALVIEW = False
+FETCH_ALN = True
+EXEC_JALVIEW = True
 
 #----------------------------------------------------------------------
 # Scripts
@@ -79,11 +81,14 @@ class SeqAnalyzer(object)  :
 		#--------------------------------------------------------------
 		# For every patient create an alignment object and process 
 
-		avl_files = glob.glob(os.path.join(datadir,"*gag.fasta"))
-		avl_files = [os.path.split(f)[1] for f in avl_files]
-		pcodes_avl = [f.split('_gag.fasta')[0] for f in avl_files]
+#		avl_files = glob.glob(os.path.join(datadir,"*gag.fasta"))
+#		avl_files = [os.path.split(f)[1] for f in avl_files]
+#		pcodes_avl = [f.split('_gag.fasta')[0] for f in avl_files]
+#
+#		for pcode in pcodes_avl : 
+#			self._process_pcode(pcode)
 
-		for pcode in pcodes_avl : 
+		for pcode in self.pcodes_time.keys() : 
 			self._process_pcode(pcode)
 
 		# Fill in the index elements
@@ -228,6 +233,7 @@ otherwise force a download of the alignment using browser automation
 			self._fetch_aln()
 		else :
 			if not self._check_aln_exists() : 
+				print("Did not find %s"%self.fpath)
 				self.aln = self._fetch_aln()
 	
 		# Fix the fasta file first
@@ -326,9 +332,32 @@ Fix 1 : Some of the traling characters gaps are missing. Add them.
 
 	def _fetch_aln(self) : 
 		""" Download the alignment using a browser session """
-		print("Did not find %s. Downloading via Browser session..."\
-				%(self.fpath))
+		print("Downloading %s via Browser session..."\
+				%(self.pcode))
+
+		# Start the broser
+		br = mechanize.Browser()	
 		
+		# Set the broser options
+		br.set_handle_robots(False)
+
+		# Open the search page
+		br.open(LOSDB_URL)
+		br.select_form(nr=1)
+		br["value SEQ_SAMple SSAM_postInfect_days 4"] = '*'
+		br["value SEQ_SAMple SSAM_postSeroConv_days 4"] = '*'
+		br["value PATient PAT_code 1 exact"] = self.pcode	
+		br.submit()
+		br.select_form(nr=1)
+		br.form["INCLUDE_HXB2"] = ['1']
+		br.form["translate"] = ['FALSE_AA']
+		br.submit(name='save')
+		link = br.find_link(text_regex="gag.fasta")
+		full_url = urlparse.urljoin(link.base_url,link.url)
+		br.retrieve(full_url,os.path.join(datadir,\
+			self.pcode+'_gag.fasta'))
+		br.close()
+
 	def _check_aln_exists(self) :
 		""" Check if the patient file exists """
 		return os.path.isfile(self.fpath)
