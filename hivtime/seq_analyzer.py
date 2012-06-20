@@ -34,10 +34,15 @@ dbpath = os.path.join(util.get_datadir(),dbname)
 #tbls = ['p24.tbl','full_genome.tbl']
 tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
+ent_top_cutoff = 0.03 # used for annotation top entropy values
+
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
-FETCH_ALN = True
-EXEC_JALVIEW = True
+FETCH_ALN = False
+EXEC_JALVIEW = False
+DO_PROCESS = False
+DO_HOTSPOT = True
+
 
 #----------------------------------------------------------------------
 # Scripts
@@ -81,15 +86,51 @@ class SeqAnalyzer(object)  :
 		#--------------------------------------------------------------
 		# For every patient create an alignment object and process 
 
-#		avl_files = glob.glob(os.path.join(datadir,"*gag.fasta"))
-#		avl_files = [os.path.split(f)[1] for f in avl_files]
-#		pcodes_avl = [f.split('_gag.fasta')[0] for f in avl_files]
-#
-#		for pcode in pcodes_avl : 
-#			self._process_pcode(pcode)
-
 		for pcode in self.pcodes_time.keys() : 
-			self._process_pcode(pcode)
+			if DO_PROCESS :
+				self._process_pcode(pcode)
+
+		#--------------------------------------------------------------
+		# Create a hotspot visualization based on the entropy scores of
+		# all sequences pooled together
+
+		if DO_HOTSPOT : 
+			print("Beginning hotspot analysis")
+			pat_ent_aa = []
+			for pcode in self.pcodes_time.keys() :
+				p24fpath = os.path.join(datadir,pcode+'_p24.fasta')
+				if not os.path.exists(p24fpath) : 
+					raise IOError('File %s not found'%p24fpath)
+				aln = AlignIO.read(open(p24fpath),"fasta")
+				ent_aa = self._entropy_aa(aln)
+				pat_ent_aa.append(ent_aa)
+			
+			# Calculate the mean of the entropy values
+			# WARNING..!This is a not a rigorous technique
+			avg_ent = np.mean(pat_ent_aa,axis=0)
+			
+			# Visualize the entropy values and plot it
+			pl.figure()
+			pl.plot(avg_ent)
+			pl.title("Plot of the average entropy across patients")
+			pl.xlabel('AA position')
+			pl.ylabel('Entropy Values')
+
+			# Get the canonical sequence to get the amino acids
+			self._canon_seq = AlignIO.read(open(p24fpath),"fasta")[0]
+			self._canon_seq = self._canon_seq.seq
+
+			# Place text on peaks
+			idx_peaks = np.where(avg_ent > ent_top_cutoff)[0]			
+			for idx in idx_peaks :
+				pl.text(idx,avg_ent[idx]+0.002,str(idx+1)+\
+					self._canon_seq[idx])
+		
+			pl.axhline(y=ent_top_cutoff)
+	
+			pl.savefig("temp.png")
+			pl.close()
+		 
 
 		# Fill in the index elements
 		page.hr()
@@ -106,8 +147,34 @@ class SeqAnalyzer(object)  :
 				href="../data/images/%s_viz.html"%(pcode))	
 			page.br()
 
+		page.hr()
+		page.h3("Capsid hotspot visualization")
+
 		with open("index_viz.html","w") as fout :
 			fout.write(page.__str__())
+
+
+	def _entropy_aa(self,aln) : 
+		""" Returns a list containing the entropy in each aa position
+		"""
+		# Remove the first sequence as it is the reference sequence
+		aln = aln[1:]	
+		
+		# Calculate the entropy for each position
+		info_cols = [] # Non conserved columns
+		for col_id in range(aln.get_alignment_length()) :
+			col = aln.get_column(col_id)
+			ftab = {} # Freq table
+			for c in col :
+				ftab[c] = ftab.get(c,0) + 1
+			counts = ftab.values()
+			sum_c = sum(counts)
+			p = map(lambda x : (0.0+x)/sum_c,counts) # probabilities
+			e = -reduce(lambda x,y:x+y,map(lambda t:t[0]*t[1],\
+				zip(p,np.log(p))))
+			info_cols.append(e)
+		return info_cols
+	
 
 	
 	def _process_pcode(self,pcode) : 
@@ -115,8 +182,7 @@ class SeqAnalyzer(object)  :
 		self.pat_obj = PatientAlignment(pcode)
 		self.pat_obj.write_aln()
 		if EXEC_JALVIEW :
-			self.pat_obj.print_jalview()
- 
+			self.pat_obj.print_jalview() 
 		
 	def _get_header_meta(self) : 
 		""" Get the header metadata """	
@@ -298,7 +364,7 @@ else return aa_aln
 		""" Write out the current alignment """
 		fname = self.pcode + '_' + suffix + ".fasta"
 		fpath = os.path.join(datadir,fname)
-		with open(fpath,'w') as fout :
+		with open(f0path,'w') as fout :
 			AlignIO.write([self.aln],fout,"fasta")
 
 	def print_jalview(self) : 
