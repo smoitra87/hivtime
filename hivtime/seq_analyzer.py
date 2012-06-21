@@ -5,6 +5,7 @@
 import sys,os
 from operator import itemgetter
 import copy,glob
+import time
 
 import numpy as np
 import pylab as pl
@@ -19,6 +20,8 @@ from Bio.Align import AlignInfo
 import markup
 import mechanize
 import urlparse
+import pymol
+from pymol import cmd
 
 import utility as util
 
@@ -31,6 +34,8 @@ LOSDB_URL = "http://www.hiv.lanl.gov/components/sequence/HIV/search/search.html"
 
 dbname = 'hivtime.db'
 dbpath = os.path.join(util.get_datadir(),dbname)
+pdbname="2XDE_v1.pdb"
+pdbpath = os.path.join(datadir,pdbname)
 #tbls = ['p24.tbl','full_genome.tbl']
 tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
@@ -126,11 +131,21 @@ class SeqAnalyzer(object)  :
 				pl.text(idx,avg_ent[idx]+0.002,str(idx+1)+\
 					self._canon_seq[idx])
 		
-			pl.axhline(y=ent_top_cutoff)
+			pl.axhline(y=ent_top_cutoff,color="black",linewidth=2,\
+				linestyle="dashed")
 	
-			pl.savefig("temp.png")
+			pl.savefig("figs/spikeplot.png")
 			pl.close()
-		 
+
+			# Create Pymol visualization of hotspot
+			self._draw_hotspot_pymol(avg_ent)
+
+			# Create hotspot page
+			self._create_hotspot_page()
+		
+		# Hotpsot visualizations 
+		page.hr()
+		page.h3("Capsid hotspot visualization")
 
 		# Fill in the index elements
 		page.hr()
@@ -147,11 +162,47 @@ class SeqAnalyzer(object)  :
 				href="../data/images/%s_viz.html"%(pcode))	
 			page.br()
 
-		page.hr()
-		page.h3("Capsid hotspot visualization")
-
 		with open("index_viz.html","w") as fout :
 			fout.write(page.__str__())
+
+	def _draw_hotspot_pymol(self,avg_ent) :
+		""" Draws hotspot values on the Capsid structure"""
+		pymol.finish_launching()
+		cmd.load(pdbpath)	
+		cmd.bg_color('white')
+		cmd.ray()
+		sys.stderr.write("Sleeping for 1 sec before saving image")
+		time.sleep(1)
+
+		figpath="figs/hot_capsid.png"
+		cmd.save(figpath)
+		cmd.delete('all')
+		cmd.quit()
+
+	def _create_hotspot_page(self) : 
+		""" Creates the Hotspot HTML page"""
+		_page_prev = self.page # save the prev page
+		self.page = markup.page()
+		page = self.page
+		title ="Hotspot visualization page"
+		page.h2(title)
+		page.init(title=title)
+		
+		page.h4("Hotspot Spike Plot")
+		figpath="figs/spikeplot.png"
+		page.img(width=800,height=600,alt="SpikePlot",src=figpath)
+
+		page.hr()
+		page.h4("Hotspots laid out on structure")
+		figpath="figs/hot_capsid.png"
+		page.img(width=800,height=600,alt="Hotspots on Capsid",\
+			src=figpath)
+
+		with open("hotspot_viz.html","w") as fout : 
+			fout.write(page.__str__())
+
+		# Write out the hotspot page
+		self.page = _page_prev # restore the previous page
 
 
 	def _entropy_aa(self,aln) : 
