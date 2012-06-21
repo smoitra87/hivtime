@@ -46,7 +46,7 @@ ent_top_cutoff = 0.03 # used for annotation top entropy values
 FETCH_ALN = False
 EXEC_JALVIEW = False
 DO_PROCESS = False
-DO_HOTSPOT = True
+DO_HOTSPOT = False
 
 
 #----------------------------------------------------------------------
@@ -170,12 +170,40 @@ class SeqAnalyzer(object)  :
 		pymol.finish_launching()
 		cmd.load(pdbpath)	
 		cmd.bg_color('white')
+		cmd.hide('all')
+		cmd.show('cartoon','2XDE')
+		cmd.set_view (\
+	    ' 0.670182824,    0.741642475,    0.028776191,\
+     	  0.289504558,   -0.296917081,    0.909961104,\
+	      0.683408201,   -0.601510704,   -0.413696259,\
+          0.000000000,    0.000000000, -148.418823242,\
+          2.920820236,   -7.499271393,   17.751243591,\
+	      117.014526367,  179.823104858,  -20.000000000')
+		
+		# set the b-factors
+		from pymol import stored
+		stored.newB = []
+		stored.newB.extend(avg_ent)
+		
+		# clear out the old B Factors
+		cmd.alter('2XDE','b=0.0');
+
+		# update the B Factors with new properties
+		cmd.alter('2XDE and n. CA','b=stored.newB.pop(0)');
+		cmd.spectrum("b",selection="2XDE and n. CA")	
+
+		# Label the high entropy residues
+		idx_peaks = np.where(avg_ent>ent_top_cutoff)[0]+1
+		for resi in idx_peaks : 
+			cmd.label('2XDE//A/'+str(resi)+'/CA','"%s%s"%(resn,resi)')
+
 		cmd.ray()
 		sys.stderr.write("Sleeping for 1 sec before saving image")
 		time.sleep(1)
-
 		figpath="figs/hot_capsid.png"
-		cmd.save(figpath)
+		sesspath=os.path.join(datadir,"hot_capsid.pse")
+		cmd.png(figpath,width=800,height=600)
+		cmd.save(sesspath)
 		cmd.delete('all')
 		cmd.quit()
 
@@ -194,6 +222,10 @@ class SeqAnalyzer(object)  :
 
 		page.hr()
 		page.h4("Hotspots laid out on structure")
+		page.a("Hotspot Pymol Session",href=os.path.join(datadir,\
+			"hot_capsid.pse"))
+		page.br()
+
 		figpath="figs/hot_capsid.png"
 		page.img(width=800,height=600,alt="Hotspots on Capsid",\
 			src=figpath)
