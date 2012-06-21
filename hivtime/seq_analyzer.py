@@ -46,7 +46,7 @@ ent_top_cutoff = 0.03 # used for annotation top entropy values
 FETCH_ALN = False
 EXEC_JALVIEW = False
 DO_PROCESS = False
-DO_HOTSPOT = False
+DO_HOTSPOT =False 
 
 
 #----------------------------------------------------------------------
@@ -222,8 +222,7 @@ class SeqAnalyzer(object)  :
 
 		page.hr()
 		page.h4("Hotspots laid out on structure")
-		page.a("Hotspot Pymol Session",href=os.path.join(datadir,\
-			"hot_capsid.pse"))
+		page.a("Hotspot Pymol Session",href="../data/hot_capsid.pse")
 		page.br()
 
 		figpath="figs/hot_capsid.png"
