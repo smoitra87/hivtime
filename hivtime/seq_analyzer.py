@@ -34,8 +34,10 @@ LOSDB_URL = "http://www.hiv.lanl.gov/components/sequence/HIV/search/search.html"
 
 dbname = 'hivtime.db'
 dbpath = os.path.join(util.get_datadir(),dbname)
-pdbname="2XDE_v1.pdb"
+pdbname="3H4E.pdb"
 pdbpath = os.path.join(datadir,pdbname)
+edgefname="31-Aug-2011-edges.dat"
+edgepath = os.path.join(datadir,edgefname)
 #tbls = ['p24.tbl','full_genome.tbl']
 tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
@@ -46,7 +48,7 @@ ent_top_cutoff = 0.03 # used for annotation top entropy values
 FETCH_ALN = False
 EXEC_JALVIEW = False
 DO_PROCESS = False
-DO_HOTSPOT =False 
+DO_HOTSPOT =True 
 
 
 #----------------------------------------------------------------------
@@ -171,14 +173,14 @@ class SeqAnalyzer(object)  :
 		cmd.load(pdbpath)	
 		cmd.bg_color('white')
 		cmd.hide('all')
-		cmd.show('cartoon','2XDE')
-		cmd.set_view (\
-	    ' 0.670182824,    0.741642475,    0.028776191,\
-     	  0.289504558,   -0.296917081,    0.909961104,\
-	      0.683408201,   -0.601510704,   -0.413696259,\
-          0.000000000,    0.000000000, -148.418823242,\
-          2.920820236,   -7.499271393,   17.751243591,\
-	      117.014526367,  179.823104858,  -20.000000000')
+		cmd.show('cartoon','3H4E and chain A')
+		cmd.set_view(\
+		    '-0.912057340, -0.295883119, -0.283901036,\
+			0.399889141, -0.795006156, -0.456119299,\
+			-0.090745762, -0.529538393, 0.843419492,\
+			0.000087761, -0.000581503, -183.590560913,\
+			8.321296692, -66.967765808, -33.590000153,\
+			-36.799331665, 403.937011719, -20.000000000' )	
 		
 		# set the b-factors
 		from pymol import stored
@@ -186,23 +188,55 @@ class SeqAnalyzer(object)  :
 		stored.newB.extend(avg_ent)
 		
 		# clear out the old B Factors
-		cmd.alter('2XDE','b=0.0');
+		cmd.alter('3H4E','b=0.0');
 
 		# update the B Factors with new properties
-		cmd.alter('2XDE and n. CA','b=stored.newB.pop(0)');
-		cmd.spectrum("b",selection="2XDE and n. CA")	
+		cmd.alter('3H4E and n. CA','b=stored.newB.pop(0)');
+		cmd.spectrum("b",selection="3H4E and n. CA")	
 
 		# Label the high entropy residues
 		idx_peaks = np.where(avg_ent>ent_top_cutoff)[0]+1
 		for resi in idx_peaks : 
-			cmd.label('2XDE//A/'+str(resi)+'/CA','"%s%s"%(resn,resi)')
+			cmd.label('3H4E//A/'+str(resi)+'/CA','"%s%s"%(resn,resi)')
 
 		cmd.ray()
 		sys.stderr.write("Sleeping for 1 sec before saving image")
 		time.sleep(1)
 		figpath="figs/hot_capsid.png"
-		sesspath=os.path.join(datadir,"hot_capsid.pse")
 		cmd.png(figpath,width=800,height=600)
+		
+		#--------------------------------------------------------------
+		# Now draw edges on the structure and save that image too
+		cutoff=2
+
+		with open(edgepath,'r') as fin :
+		    data = fin.readlines();
+		edges = [line.strip().split() for line in data]
+		
+		for n,e in enumerate(edges) :
+		    t = cmd.dist('dist'+str(n),'3H4E//A/'+e[0]+'/CA',\
+		'3H4E//A/'+e[1]+'/CA')
+		
+		    if t < cutoff :
+		        cmd.delete('dist'+str(n))
+		    else :
+		        cmd.color('magenta','dist'+str(n))
+		        cmd.hide('labels','dist'+str(n))
+		        cmd.show('spheres','3H4E//A/'+e[0]+'/CA')
+		        cmd.show('spheres','3H4E//A/'+e[1]+'/CA')
+		        #cmd.color('yellow','3H4E//A/'+e[0]+'/CA')
+		        #cmd.color('yellow','3H4E//A/'+e[1]+'/CA')
+		
+		cmd.set('dash_radius','0.2');
+		cmd.set('dash_gap','0.0');
+		cmd.set('sphere_scale','0.3')
+		#cmd.set('sphere_scale','0.8','retinal');
+		cmd.ray()
+		figpath="figs/hot_capsid_gremlin.png"
+		cmd.png(figpath,width=800,height=600)
+
+		# Save the PyMol session
+		sesspath=os.path.join(datadir,"hot_capsid.pse")
 		cmd.save(sesspath)
 		cmd.delete('all')
 		cmd.quit()
@@ -227,6 +261,12 @@ class SeqAnalyzer(object)  :
 
 		figpath="figs/hot_capsid.png"
 		page.img(width=800,height=600,alt="Hotspots on Capsid",\
+			src=figpath)
+
+		page.br()
+		page.h4("Hotspots laid out on structure with gremlin edges")
+		figpath="figs/hot_capsid_gremlin.png"
+		page.img(width=800,height=600,alt="Hotspots Capsid + gremlin",\
 			src=figpath)
 
 		with open("hotspot_viz.html","w") as fout : 
