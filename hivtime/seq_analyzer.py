@@ -46,10 +46,10 @@ ent_top_cutoff = 0.03 # used for annotation top entropy values
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
-EXEC_JALVIEW = False
+EXEC_JALVIEW =False
 DO_PROCESS = False
-DO_HOTSPOT =True 
-
+DO_HOTSPOT = False 
+DO_STAT = True
 
 #----------------------------------------------------------------------
 # Scripts
@@ -144,7 +144,12 @@ class SeqAnalyzer(object)  :
 
 			# Create hotspot page
 			self._create_hotspot_page()
-		
+	
+		if DO_STAT : 
+			for pcode in self.pcodes_time.keys(): 
+ 				self._calc_stats(pcode)
+			
+	
 		# Hotpsot visualizations 
 		page.hr()
 		page.h3("Capsid hotspot visualization")
@@ -166,6 +171,11 @@ class SeqAnalyzer(object)  :
 
 		with open("index_viz.html","w") as fout :
 			fout.write(page.__str__())
+
+	def _calc_stats(self,pcode) : 
+		""" Calculate statistics for each patient alignment"""
+		pass
+
 
 	def _draw_hotspot_pymol(self,avg_ent) :
 		""" Draws hotspot values on the Capsid structure"""
@@ -486,7 +496,7 @@ else return aa_aln
 		""" Write out the current alignment """
 		fname = self.pcode + '_' + suffix + ".fasta"
 		fpath = os.path.join(datadir,fname)
-		with open(f0path,'w') as fout :
+		with open(fpath,'w') as fout :
 			AlignIO.write([self.aln],fout,"fasta")
 
 	def print_jalview(self) : 
