@@ -521,6 +521,8 @@ Fix 1 : Some of the traling characters gaps are missing. Add them.
 Fix 2 : Examine the accession ids from the fasta filed with those 
 stored in the SQL table. There might be discrepancies because patient
 codes are not unique. We should have used patientids instead. 
+Fix 3 : Make sure that the sequences are sorted in ascending time
+Fix 4 : Time information is inserted as first field in record name
 
 """
 		records = list(SeqIO.parse(self.fpath,"fasta"))
@@ -544,6 +546,25 @@ codes are not unique. We should have used patientids instead.
 		records = [rec for rec in records if\
 			 self._get_accname(rec) not in diff]
 
+		# Fix 3  - Sequences are in ascending time
+		timefield = self.seqobj.pcodes_time[self.pcode]
+		rec_hxb = records[0]
+		records= records[1:]
+	
+		# Get the accessions and time info for this patient		
+		cur.execute("SELECT DISTINCT accession,%s FROM %s WHERE \
+			patientcode='%s'"%(timefield,self.seqobj.name,self.pcode))
+		acc_time = dict(cur.fetchall()) # dict key-acc , val-time
+		accs = map(self._get_accname,records)
+		times = map(lambda acc : dict.__getitem__(acc_time,acc),accs)
+		sorted_tups = sorted(zip(records,times),key=itemgetter(1))
+		for rec,time in sorted_tups : 
+			rec.name = str(time) +"."+ rec.name
+			rec.id = str(time) + "." + rec.id
+		records = map(itemgetter(0),sorted_tups)
+		records.insert(0,rec_hxb)
+		
+	
 		SeqIO.write(records,self.fpath,format="fasta")
 
 	def _get_accname(self,rec) : 
