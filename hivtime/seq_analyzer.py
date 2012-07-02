@@ -47,7 +47,7 @@ ent_top_cutoff = 0.03 # used for annotation top entropy values
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
 EXEC_JALVIEW =False
-DO_PROCESS = False
+DO_PROCESS =True
 DO_HOTSPOT = False 
 DO_STAT = True
 
@@ -311,7 +311,7 @@ class SeqAnalyzer(object)  :
 	
 	def _process_pcode(self,pcode) : 
 		""" Process every patient code"""
-		self.pat_obj = PatientAlignment(pcode)
+		self.pat_obj = PatientAlignment(pcode,self)
 		self.pat_obj.write_aln()
 		if EXEC_JALVIEW :
 			self.pat_obj.print_jalview() 
@@ -410,8 +410,9 @@ Pick timeforsero > timeinfec > dayssample > fiebig > sampling year
 
 class PatientAlignment(object) :
 	"""Creates an alignment of patient sequences """
-	def __init__(self,pat_code) :
+	def __init__(self,pat_code,seqobj) :
 		self.pcode = pat_code
+		self.seqobj = seqobj # Pointer to parent seqeunce analyzer obj
 		self.FLAG_FETCH_ALN = FETCH_ALN
 		self.aln = None
 		self.fname = self.pcode+'_gag.fasta'
@@ -517,16 +518,37 @@ else return aa_aln
 		""" Read in the fasta file and make some fixes 
 
 Fix 1 : Some of the traling characters gaps are missing. Add them. 
-
+Fix 2 : Examine the accession ids from the fasta filed with those 
+stored in the SQL table. There might be discrepancies because patient
+codes are not unique. We should have used patientids instead. 
 
 """
 		records = list(SeqIO.parse(self.fpath,"fasta"))
+
+		# Fix 1
 		max_len = max([len(rec) for rec in records])
 		for rec in records : 
 			if len(rec) < max_len : 
 				rec.seq = rec.seq + '-'*(max_len-len(rec))
 
+		# Fix 2
+		acc_names = [self._get_accname(rec) for rec in records[1:]]
+		# query the sqlite database to get the list of accession names
+		# for the patient
+		cur.execute("SELECT DISTINCT accession from %s\
+			WHERE patientcode='%s'"%(self.seqobj.name,self.pcode))
+		acc_names_tbl = map(itemgetter(0),cur.fetchall())
+		# sequences in fasta alignment but not in db search
+		diff = set(acc_names).difference(acc_names_tbl)
+
+		records = [rec for rec in records if\
+			 self._get_accname(rec) not in diff]
+
 		SeqIO.write(records,self.fpath,format="fasta")
+
+	def _get_accname(self,rec) : 
+		""" Gets accession from seq record"""
+		return rec.name.split('.')[-1]
 
 	def _fetch_aln(self) : 
 		""" Download the alignment using a browser session """
