@@ -173,7 +173,23 @@ class SeqAnalyzer(object)  :
 			fout.write(page.__str__())
 
 	def _calc_stats(self,pcode) : 
-		""" Calculate statistics for each patient alignment"""
+		""" 
+Calculate statistics for each patient alignment
+Questions answered by stat analysis : 
+
+Q1. Does a residue position change a lot ?
+	A1. Hotspot analysis. 
+
+Q2. Does a residue position change in a patient with time ?
+	A2. Autocorrelation/MI/Hyp tests
+
+Q3. Is a residue position coupled with another residue position ? 
+	A3. CHAVI gremlin analysis
+
+Q4. is a residue position coupled with another residue per patient 
+and with time ? 
+	A4.
+		"""
 		pass
 
 
