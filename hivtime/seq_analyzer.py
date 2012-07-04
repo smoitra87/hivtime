@@ -149,11 +149,6 @@ class SeqAnalyzer(object)  :
 			for pcode in self.pcodes_time.keys(): 
  				self._calc_stats(pcode)
 			
-	
-		# Hotpsot visualizations 
-		page.hr()
-		page.h3("Capsid hotspot visualization")
-
 		# Fill in the index elements
 		page.hr()
 		page.h3("Full Capsid Sequence Alignment")
@@ -188,7 +183,7 @@ Q3. Is a residue position coupled with another residue position ?
 
 Q4. is a residue position coupled with another residue per patient 
 and with time ? 
-	A4.
+	A4. Paired aa counts
 		"""
 		pass
 
