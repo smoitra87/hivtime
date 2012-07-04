@@ -49,7 +49,7 @@ ent_stat_cutoff = 0.4 # used for speeding up stat calculations
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
 EXEC_JALVIEW = False
-DO_PROCESS = False
+DO_PROCESS =False
 DO_HOTSPOT = False
 DO_STAT = True
 
@@ -263,19 +263,38 @@ and with time ?
 			patient_col_mean.append(col_aa_mean)	
 		
 		if len(patient_col_mean) > 0  :
-			self._plot_patient_order_means(patient_col_mean)
+			self._plot_patient_order_means(patient_col_mean,pcode,\
+				idx_cols)
 			
 		# Calculate column pair statistics 
 		for col1, col2 in itertools.combinations(idx_cols,2) : 
 			pass
-	def _plot_patient_order_means(self,patient_col_mean):
+	def _plot_patient_order_means(self,patient_col_mean,pcode,idx_cols):
 		""" Make a bar plot like figure of order means for every
 		column in a  patient"""
 		pl.figure()
-		pl.axis([0,len(patient_col_mean),0,1])
+		d=0.2
+		pl.axis([0-d,len(patient_col_mean)+d,1+d,0-d])
 		for i in range(len(patient_col_mean))[1:] :
-			pl.axvline(x=i)
+			pl.axvline(x=i,color='black')
+		pl.title("Order Means; Pat - %s"%(pcode))
+		pl.xlabel("Residue Number")
+		pl.ylabel("Order Scale")
+		_xticks = (np.arange(len(idx_cols))+0.5,\
+				map(str,np.array(idx_cols)+1))
+		pl.xticks(*_xticks)
+		pl.axhline(y=0.5,linestyle="dashed",linewidth=2)		
+		
+		for ii,aa_col_mean in enumerate(patient_col_mean)  :
+			for jj,aa in enumerate(aa_col_mean) :
+				d = 0.1
+				xpos = ii+(jj+1)*1.0/(len(aa_col_mean)+1)
+				ypos = aa_col_mean[aa]
+				pl.text(xpos,ypos,aa, \
+					bbox=dict(facecolor='red', alpha=0.5))
+
 		pl.show()
+		#assert False
 		pl.close()	
 	
 	def _draw_hotspot_pymol(self,avg_ent) :
@@ -518,6 +537,8 @@ class PatientAlignment(object) :
 		self.aln = None
 		self.fname = self.pcode+'_gag.fasta'
 		self.fpath = os.path.join(datadir,self.fname)
+		self.fixname = self.pcode+'_fix.fasta'
+		self.fixpath = os.path.join(datadir,self.fixname)
 		self._p24_start = 'PIVQN'
 		self._p24_end = 'KARVL'
 		self._load_aln()
@@ -540,7 +561,7 @@ otherwise force a download of the alignment using browser automation
 		self._fix_fasta()
 
 		# Read in the fasta file as a biopython alignment object
-		self.aln = AlignIO.read(open(self.fpath),"fasta")
+		self.aln = AlignIO.read(open(self.fixpath),"fasta")
 		print "Gag Alignment Lenth is %d"% \
 			self.aln.get_alignment_length()
 
@@ -658,15 +679,19 @@ Fix 4 : Time information is inserted as first field in record name
 		acc_time = dict(cur.fetchall()) # dict key-acc , val-time
 		accs = map(self._get_accname,records)
 		times = map(lambda acc : dict.__getitem__(acc_time,acc),accs)
-		sorted_tups = sorted(zip(records,times),key=itemgetter(1))
+		
+		# Filter all records where no time info is None
+		tups = filter(lambda x : x[1] is not None,zip(records,times))
+		sorted_tups = sorted(tups,key=itemgetter(1))
+
 		for rec,time in sorted_tups : 
+			#assert False
 			rec.name = str(time) +"."+ rec.name
 			rec.id = str(time) + "." + rec.id
 		records = map(itemgetter(0),sorted_tups)
 		records.insert(0,rec_hxb)
 		
-	
-		SeqIO.write(records,self.fpath,format="fasta")
+		SeqIO.write(records,self.fixpath,format="fasta")
 
 	def _get_accname(self,rec) : 
 		""" Gets accession from seq record"""
