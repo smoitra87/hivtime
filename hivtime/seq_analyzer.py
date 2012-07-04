@@ -6,6 +6,8 @@ import sys,os
 from operator import itemgetter
 import copy,glob
 import time
+import itertools
+
 
 import numpy as np
 import pylab as pl
@@ -42,13 +44,13 @@ edgepath = os.path.join(datadir,edgefname)
 tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
 ent_top_cutoff = 0.03 # used for annotation top entropy values
-
+ent_stat_cutoff = 0.4 # used for speeding up stat calculations
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
-EXEC_JALVIEW =False
-DO_PROCESS =True
-DO_HOTSPOT = False 
+EXEC_JALVIEW = False
+DO_PROCESS = False
+DO_HOTSPOT = False
 DO_STAT = True
 
 #----------------------------------------------------------------------
@@ -146,9 +148,16 @@ class SeqAnalyzer(object)  :
 			self._create_hotspot_page()
 	
 		if DO_STAT : 
+			print("Beginning Statistical analysis")
+	
+			# Exploratory analysis for finding distribution of entropy
+			# per column per patient
+			#self._explore_stats1()
+			
 			for pcode in self.pcodes_time.keys(): 
  				self._calc_stats(pcode)
-			
+					
+	
 		# Fill in the index elements
 		page.hr()
 		page.h3("Full Capsid Sequence Alignment")
@@ -166,6 +175,23 @@ class SeqAnalyzer(object)  :
 
 		with open("index_viz.html","w") as fout :
 			fout.write(page.__str__())
+
+	def _explore_stats1(self) : 
+		""" Do exploratory statistical analysis for entropy per patient
+		"""
+		ent_pat_aa = []
+		for pcode in self.pcodes_time.keys(): 
+			p24fpath = os.path.join(datadir,pcode+'_p24.fasta')
+			if not os.path.exists(p24fpath) : 
+				raise IOError('File %s not found'%p24fpath)
+			aln = AlignIO.read(open(p24fpath),"fasta")
+			ent_aa = self._entropy_aa(aln)
+			ent_pat_aa.extend(ent_aa)
+
+		pl.hist(ent_pat_aa,bins=100,facecolor='green',log=True)
+		pl.savefig("figs/explore_stat1.png")
+		pl.close()
+		
 
 	def _calc_stats(self,pcode) : 
 		""" 
@@ -185,9 +211,73 @@ Q4. is a residue position coupled with another residue per patient
 and with time ? 
 	A4. Paired aa counts
 		"""
-		pass
+		
+		analysis = {}
+		analysis['pcode'] = pcode;
 
+		p24fpath = os.path.join(datadir,pcode+'_p24.fasta')
+		if not os.path.exists(p24fpath) : 
+			raise IOError('File %s not found'%p24fpath)
+		aln = AlignIO.read(open(p24fpath),"fasta")
+		aln = aln[1:] # Remove reference row
+		ent_aa = np.array(self._entropy_aa(aln))
 
+		# find indices of all columsn greater than cutoff
+		idx_cols = np.where(ent_aa > ent_stat_cutoff)[0]
+		analysis['candidate_cols'] = idx_cols;
+	
+		#print pcode," : ", idx_cols
+
+		# Calculate columnwise statistics		
+		times = [int(rec.id.split('.')[0]) for rec in aln ]
+		uniq_times = sorted(set(times))		
+		if len(uniq_times) > 1 : 
+			scale_factor = len(uniq_times)-1 
+		else : 
+			scale_factor = 1
+		
+		# List of order means for each candidate column in patient
+		patient_col_mean = []
+
+		for col in idx_cols:
+			col_aa = aln[:,col]
+		 	uniq_aa = set(col_aa) # Unique aa in column
+			col_aa_mean = {}
+			for aa in uniq_aa : 
+				# Find row ids or aa types
+				row_idx = np.where(map(lambda s:s==aa,col_aa))[0]
+				# Find corresponding times for aa types
+				times_idx = filter(lambda x : x[0] in row_idx,\
+					enumerate(times))
+				times_idx = map(itemgetter(1),times_idx)
+				uniq_times_aa = sorted(set(times_idx))
+				# Get rank-ordering of occurence of aa type
+				ranks_aa =	filter(lambda x:x[1] in uniq_times_aa,\
+					enumerate(uniq_times))
+				ranks_aa = map(itemgetter(0),ranks_aa)
+				#scale ranks to be b/w 0 and 1
+				ranks_aa_scaled = \
+					map(lambda x: (0.0+x)/scale_factor,ranks_aa)
+				aa_order_mean = np.mean(ranks_aa_scaled)
+				col_aa_mean[aa] = aa_order_mean
+			patient_col_mean.append(col_aa_mean)	
+		
+		if len(patient_col_mean) > 0  :
+			self._plot_patient_order_means(patient_col_mean)
+			
+		# Calculate column pair statistics 
+		for col1, col2 in itertools.combinations(idx_cols,2) : 
+			pass
+	def _plot_patient_order_means(self,patient_col_mean):
+		""" Make a bar plot like figure of order means for every
+		column in a  patient"""
+		pl.figure()
+		pl.axis([0,len(patient_col_mean),0,1])
+		for i in range(len(patient_col_mean))[1:] :
+			pl.axvline(x=i)
+		pl.show()
+		pl.close()	
+	
 	def _draw_hotspot_pymol(self,avg_ent) :
 		""" Draws hotspot values on the Capsid structure"""
 		pymol.finish_launching()
