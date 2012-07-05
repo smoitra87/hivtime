@@ -476,6 +476,9 @@ with lite.connect(dbpath) as con :
 		page.hr()
 		page.a("Hotspot visualization",href="hotspot_viz.html")
 
+		page.hr()
+		page.a("Sequence Statistics",href="patient_stats.html")
+
 		with open("index.html",'w')	 as fout : 
 			fout.write(page.__str__())
 		
