@@ -44,7 +44,7 @@ edgepath = os.path.join(datadir,edgefname)
 tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
 ent_top_cutoff = 0.03 # used for annotation top entropy values
-ent_stat_cutoff = 0.4 # used for speeding up stat calculations
+ent_stat_cutoff = 0.6 # used for speeding up stat calculations
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
@@ -153,10 +153,10 @@ class SeqAnalyzer(object)  :
 			# Exploratory analysis for finding distribution of entropy
 			# per column per patient
 			#self._explore_stats1()
-			
+			analyses = {}		
 			for pcode in self.pcodes_time.keys(): 
- 				self._calc_stats(pcode)
-					
+ 				analyses[pcode] = self._calc_stats(pcode)
+			self._gen_report_stats(analyses)
 	
 		# Fill in the index elements
 		page.hr()
@@ -214,6 +214,9 @@ and with time ?
 		
 		analysis = {}
 		analysis['pcode'] = pcode;
+		analysis['plot_res'] = False
+		analysis['plot_pair'] = False
+
 
 		p24fpath = os.path.join(datadir,pcode+'_p24.fasta')
 		if not os.path.exists(p24fpath) : 
@@ -224,7 +227,7 @@ and with time ?
 
 		# find indices of all columsn greater than cutoff
 		idx_cols = np.where(ent_aa > ent_stat_cutoff)[0]
-		analysis['candidate_cols'] = idx_cols;
+		analysis['idx_cols'] = idx_cols;
 	
 		#print pcode," : ", idx_cols
 
@@ -236,6 +239,7 @@ and with time ?
 		else : 
 			scale_factor = 1
 		
+		#--------------------------------------------------------------	
 		# List of order means for each candidate column in patient
 		patient_col_mean = []
 
@@ -261,15 +265,108 @@ and with time ?
 				aa_order_mean = np.mean(ranks_aa_scaled)
 				col_aa_mean[aa] = aa_order_mean
 			patient_col_mean.append(col_aa_mean)	
-		
+		analysis['col_order_mean'] = patient_col_mean	
+
 		if len(patient_col_mean) > 0  :
+			analysis['plot_res'] = True
 			self._plot_patient_order_means(patient_col_mean,pcode,\
-				idx_cols)
-			
-		# Calculate column pair statistics 
+				idx_cols,mode=1)
+	
+		#--------------------------------------------------------------
+		# Order means per column pair
+		patient_col_mean = []
+
 		for col1, col2 in itertools.combinations(idx_cols,2) : 
-			pass
-	def _plot_patient_order_means(self,patient_col_mean,pcode,idx_cols):
+			col1_aa = aln[:,col1]
+			col2_aa = aln[:,col2]
+			col_aa = [s1+s2 for s1,s2 in zip(col1_aa,col2_aa)]
+		 	uniq_aa = set(col_aa) # Unique aa in column
+			col_aa_mean = {}
+			for aa in uniq_aa : 
+				# Find row ids or aa types
+				row_idx = np.where(map(lambda s:s==aa,col_aa))[0]
+				# Find corresponding times for aa types
+				times_idx = filter(lambda x : x[0] in row_idx,\
+					enumerate(times))
+				times_idx = map(itemgetter(1),times_idx)
+				uniq_times_aa = sorted(set(times_idx))
+				# Get rank-ordering of occurence of aa type
+				ranks_aa =	filter(lambda x:x[1] in uniq_times_aa,\
+					enumerate(uniq_times))
+				ranks_aa = map(itemgetter(0),ranks_aa)
+				#scale ranks to be b/w 0 and 1
+				ranks_aa_scaled = \
+					map(lambda x: (0.0+x)/scale_factor,ranks_aa)
+				aa_order_mean = np.mean(ranks_aa_scaled)
+				col_aa_mean[aa] = aa_order_mean
+			patient_col_mean.append(col_aa_mean)	
+
+		analysis['pair_order_mean'] = patient_col_mean
+
+		if len(patient_col_mean) > 0  :	
+			analysis['plot_pair'] = True
+			self._plot_patient_order_means(patient_col_mean,pcode,\
+				idx_cols,mode=2)
+
+		return analysis
+	
+	def _gen_report_stats(self,analyses) :
+		""" Generates reports for the statistics calculations"""
+
+		self._page_prev = self.page # save the prev page
+		self.page = markup.page()
+		page = self.page
+		title ="Patient Sequence Statistics page"
+		page.h2(title)
+		page.init(title=title)
+	
+
+		#-----------------------------------------------------------
+		# Generate patientwise time dependent residues/columns
+		page.h4("Patientwise Time Dependent Residues ")
+		pstr = ["""
+The figures below display the time preference for each residue type for select columns on a per patient basis. The columns per patient were selected based an entropy cutoff. Time was ordered and shrunk down to a scale of 0 to 1 with 0 being early stage and 1 being late stage. Normally if a residue type is perfectly conserved or does not show any dependence on time then the residue type is likely to have a mean time value(y-value) of around 0.5. However if the residue is significantly above or below the 0.5 dashed blue line then it shows that the residue has a prefernce for occuring in the early or late stages. NOTE :  That this scheme cannot differentiate between residue types that are in middle stage, since they are likely to have a mean y-value of 0.5 as well. 
+		"""]
+		page.p(pstr)
+
+		#--------------------------------------------------------------
+		# Order means per column images
+		for pcode in self.pcodes_time.keys() : 
+			if not analyses[pcode]['plot_res'] :
+				continue			
+			figpath="figs/"+pcode+"_res_order_means.png"
+			page.img(width=400,height=300,alt=pcode+"order_means",\
+				src=figpath)
+
+		#--------------------------------------------------------------
+		# Order means per column pairs images
+		
+		page = self.page
+		page.hr()
+		page.br()
+		page.h4("Patientwise time dependent residue pairs")
+
+		for pcode in self.pcodes_time.keys() : 
+			# Default three columns
+			if not analyses[pcode]['plot_pair'] :
+				continue
+			ncols = len(list(itertools.combinations(\
+				analyses[pcode]['idx_cols'],2)))
+			figpath="figs/"+pcode+"_pair_order_means.png"
+			if ncols > 6 : 
+				page.img(width=800,height=300,alt=pcode+"order_means",\
+					src=figpath)
+			else :
+				page.img(width=400,height=300,alt=pcode+"order_means",\
+					src=figpath)
+
+		with open("patient_stats.html","w") as fout : 
+			fout.write(page.__str__())
+		self.page = self._page_prev
+
+
+	def _plot_patient_order_means(self,patient_col_mean,pcode,idx_cols,
+		mode):
 		""" Make a bar plot like figure of order means for every
 		column in a  patient"""
 		pl.figure()
@@ -280,21 +377,34 @@ and with time ?
 		pl.title("Order Means; Pat - %s"%(pcode))
 		pl.xlabel("Residue Number")
 		pl.ylabel("Order Scale")
-		_xticks = (np.arange(len(idx_cols))+0.5,\
+		
+		# Choose different plots for cols and pairs
+		if mode == 1 : 
+			_xticks = (np.arange(len(idx_cols))+0.5,\
 				map(str,np.array(idx_cols)+1))
+			figname= pcode+"_res_order_means.png"
+		if mode == 2 :
+			pairs = list(itertools.combinations(np.array(idx_cols)+1,2))
+			_xticks = (np.arange(len(pairs))+0.5,\
+				[str(c1)+"-"+str(c2) for c1,c2 in pairs])
+			figname= pcode+"_pair_order_means.png"
+		
 		pl.xticks(*_xticks)
 		pl.axhline(y=0.5,linestyle="dashed",linewidth=2)		
 		
 		for ii,aa_col_mean in enumerate(patient_col_mean)  :
-			for jj,aa in enumerate(aa_col_mean) :
+			sorted_tups = sorted(aa_col_mean.items(),key=itemgetter(1))
+			sorted_aa = map(itemgetter(0),sorted_tups)
+			for jj,aa in enumerate(sorted_aa) :
 				d = 0.1
 				xpos = ii+(jj+1)*1.0/(len(aa_col_mean)+1)
 				ypos = aa_col_mean[aa]
 				pl.text(xpos,ypos,aa, \
 					bbox=dict(facecolor='red', alpha=0.5))
-
-		pl.show()
-		#assert False
+			
+		figpath="figs/"+figname
+		pl.savefig(figpath)
+		#pl.show()
 		pl.close()	
 	
 	def _draw_hotspot_pymol(self,avg_ent) :
