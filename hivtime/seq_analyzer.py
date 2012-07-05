@@ -242,11 +242,14 @@ and with time ?
 		#--------------------------------------------------------------	
 		# List of order means for each candidate column in patient
 		patient_col_mean = []
+		patient_col_rank = []
+
 
 		for col in idx_cols:
 			col_aa = aln[:,col]
 		 	uniq_aa = set(col_aa) # Unique aa in column
 			col_aa_mean = {}
+			col_aa_rank = {}
 			for aa in uniq_aa : 
 				# Find row ids or aa types
 				row_idx = np.where(map(lambda s:s==aa,col_aa))[0]
@@ -259,19 +262,25 @@ and with time ?
 				ranks_aa =	filter(lambda x:x[1] in uniq_times_aa,\
 					enumerate(uniq_times))
 				ranks_aa = map(itemgetter(0),ranks_aa)
+				col_aa_rank[aa] = ranks_aa
 				#scale ranks to be b/w 0 and 1
 				ranks_aa_scaled = \
 					map(lambda x: (0.0+x)/scale_factor,ranks_aa)
 				aa_order_mean = np.mean(ranks_aa_scaled)
 				col_aa_mean[aa] = aa_order_mean
 			patient_col_mean.append(col_aa_mean)	
+			patient_col_rank.append(col_aa_rank)
+			# Run Mann whitney U test
 		analysis['col_order_mean'] = patient_col_mean	
+		analysis['col_rank'] = patient_col_rank
+
+		results_test = self._test_wilcox(patient_col_rank)
 
 		if len(patient_col_mean) > 0  :
 			analysis['plot_res'] = True
-			self._plot_patient_order_means(patient_col_mean,pcode,\
-				idx_cols,mode=1)
-	
+#			self._plot_patient_order_means(patient_col_mean,pcode,\
+#				idx_cols,mode=1)
+
 		#--------------------------------------------------------------
 		# Order means per column pair
 		patient_col_mean = []
@@ -282,6 +291,7 @@ and with time ?
 			col_aa = [s1+s2 for s1,s2 in zip(col1_aa,col2_aa)]
 		 	uniq_aa = set(col_aa) # Unique aa in column
 			col_aa_mean = {}
+			col_aa_rank = {}
 			for aa in uniq_aa : 
 				# Find row ids or aa types
 				row_idx = np.where(map(lambda s:s==aa,col_aa))[0]
@@ -294,21 +304,32 @@ and with time ?
 				ranks_aa =	filter(lambda x:x[1] in uniq_times_aa,\
 					enumerate(uniq_times))
 				ranks_aa = map(itemgetter(0),ranks_aa)
+				col_aa_rank[aa] = ranks_aa
 				#scale ranks to be b/w 0 and 1
 				ranks_aa_scaled = \
 					map(lambda x: (0.0+x)/scale_factor,ranks_aa)
 				aa_order_mean = np.mean(ranks_aa_scaled)
 				col_aa_mean[aa] = aa_order_mean
 			patient_col_mean.append(col_aa_mean)	
-
+			patient_col_rank.append(col_aa_rank)
 		analysis['pair_order_mean'] = patient_col_mean
+		analysis['pair_rank'] = patient_col_rank
 
+		results_test = self._test_wilcox(patient_col_rank)
+		
 		if len(patient_col_mean) > 0  :	
 			analysis['plot_pair'] = True
-			self._plot_patient_order_means(patient_col_mean,pcode,\
-				idx_cols,mode=2)
+#			self._plot_patient_order_means(patient_col_mean,pcode,\
+#				idx_cols,mode=2)
 
 		return analysis
+
+	def _test_wilcox(self,pat_col_rank) : 
+		""" Runs the Mann-Whitney U / Wilcoxon Rank-sum test
+for every pair of aa in each candidate column of the alignment. 
+Returns the summary of the results
+			"""
+		pass
 	
 	def _gen_report_stats(self,analyses) :
 		""" Generates reports for the statistics calculations"""
