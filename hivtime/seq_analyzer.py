@@ -24,6 +24,7 @@ import mechanize
 import urlparse
 import pymol
 from pymol import cmd
+from scipy.stats import mannwhitneyu
 
 import utility as util
 
@@ -45,6 +46,7 @@ tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
 ent_top_cutoff = 0.03 # used for annotation top entropy values
 ent_stat_cutoff = 0.6 # used for speeding up stat calculations
+sig_lev = 0.05
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
@@ -275,6 +277,8 @@ and with time ?
 		analysis['col_rank'] = patient_col_rank
 
 		results_test = self._test_wilcox(patient_col_rank)
+		analysis['result_res']= results_test
+
 
 		if len(patient_col_mean) > 0  :
 			analysis['plot_res'] = True
@@ -284,6 +288,7 @@ and with time ?
 		#--------------------------------------------------------------
 		# Order means per column pair
 		patient_col_mean = []
+		patient_col_rank = []
 
 		for col1, col2 in itertools.combinations(idx_cols,2) : 
 			col1_aa = aln[:,col1]
@@ -316,7 +321,9 @@ and with time ?
 		analysis['pair_rank'] = patient_col_rank
 
 		results_test = self._test_wilcox(patient_col_rank)
-		
+		analysis['result_pair']	 = results_test
+
+	
 		if len(patient_col_mean) > 0  :	
 			analysis['plot_pair'] = True
 #			self._plot_patient_order_means(patient_col_mean,pcode,\
@@ -329,8 +336,18 @@ and with time ?
 for every pair of aa in each candidate column of the alignment. 
 Returns the summary of the results
 			"""
-		pass
-	
+		result_all = [] ;
+		for col in pat_col_rank : 
+			result_col = {}
+			for aa1,aa2 in itertools.combinations(col.keys(),2) :
+				if col[aa1] == col[aa2] : 
+					continue
+				pval = mannwhitneyu(col[aa1],col[aa2])[1]
+				result_col[str(aa1)+"<"+str(aa2)] = pval	
+			result_all.append(result_col)
+		return result_all
+
+
 	def _gen_report_stats(self,analyses) :
 		""" Generates reports for the statistics calculations"""
 
@@ -350,41 +367,112 @@ The figures below display the time preference for each residue type for select c
 		"""]
 		page.p(pstr)
 
+		page.p("<b>NOTE:</b> Current Significance Level is \\alpha=0.05")
+
 		#--------------------------------------------------------------
 		# Order means per column images
-		for pcode in self.pcodes_time.keys() : 
-			if not analyses[pcode]['plot_res'] :
-				continue			
-			figpath="figs/"+pcode+"_res_order_means.png"
-			page.img(width=400,height=300,alt=pcode+"order_means",\
-				src=figpath)
+		self._write_divs1(analyses)
 
 		#--------------------------------------------------------------
 		# Order means per column pairs images
-		
-		page = self.page
 		page.hr()
 		page.br()
 		page.h4("Patientwise time dependent residue pairs")
 
-		for pcode in self.pcodes_time.keys() : 
-			# Default three columns
-			if not analyses[pcode]['plot_pair'] :
-				continue
-			ncols = len(list(itertools.combinations(\
-				analyses[pcode]['idx_cols'],2)))
-			figpath="figs/"+pcode+"_pair_order_means.png"
-			if ncols > 6 : 
-				page.img(width=800,height=300,alt=pcode+"order_means",\
-					src=figpath)
-			else :
-				page.img(width=400,height=300,alt=pcode+"order_means",\
-					src=figpath)
-
+		self._write_divs2(analyses)
+	
 		with open("patient_stats.html","w") as fout : 
 			fout.write(page.__str__())
 		self.page = self._page_prev
 
+	def _prep_div_tbl1(self,result) : 
+		""" Helper function that prepares string for div """
+		ret = []
+		for col in result :
+			ret.append(\
+				"</br>".join([h.replace('<','-')+":"+"%.4f"%p for\
+				 h,p in col.items() if p < sig_lev]))
+		return ret
+
+	def _write_divs1(self,analyses) : 
+		""" Writes out divs and images for columns"""
+		page = self.page
+		ncell_row = 3 # Number of cells per row
+
+		_pcodes =  map(itemgetter(0),\
+			filter(lambda x:x[1]['plot_res'],analyses.items()))
+		pcodes = filter(lambda x: x in _pcodes,self.pcodes_time.keys())
+
+		page.div(id="container",\
+			style="display:table;border: 1px solid black")
+		for i in range(len(pcodes))[::ncell_row] :
+			page.div(id="row",style="display:table-row")
+			for pcode in pcodes[i:i+ncell_row] : 
+				page.div(id="cell",\
+					style="display:table-cell;padding:1em;"+\
+					"border: 1px solid black")	
+				figpath="figs/"+pcode+"_res_order_means.png"
+				# Saving image
+				page.img(width=400,height=300,alt=pcode+"order_means",\
+				src=figpath)
+				# Printing p-values
+				page.table(style="margin:auto;border:1px solid black")	
+				page.tr()
+				page.td(["Res"+str(r) for r in \
+					np.array(analyses[pcode]['idx_cols'])+1],\
+						style="margin:auto;border:1px solid black;"+\
+						"font-size:70%;padding:0.5em")
+				page.tr.close()
+				page.tr()
+				page.td(self._prep_div_tbl1(\
+					analyses[pcode]['result_res']),\
+					style="margin:auto;border:1px solid black;"+\
+						"font-size:50%;padding:0.5em")
+				page.tr.close()
+				page.table.close()
+
+				page.div.close()
+			page.div.close()
+		page.div.close()
+
+	def _write_divs2(self,analyses) : 
+		""" Writes out divs and images for column pairs"""
+		page = self.page
+		ncell_row = 3 # Number of cells per row
+
+		_pcodes =  map(itemgetter(0),\
+			filter(lambda x:x[1]['plot_pair'],analyses.items()))
+		pcodes = filter(lambda x: x in _pcodes,self.pcodes_time.keys())
+
+		page.div(id="container",\
+			style="display:table;border: 1px solid black")
+		for i in range(len(pcodes))[::ncell_row] :
+			page.div(id="row",style="display:table-row")
+			for pcode in pcodes[i:i+ncell_row] : 
+				page.div(id="cell",\
+					style="display:table-cell;padding:1em;"+\
+					"border: 1px solid black")	
+				figpath="figs/"+pcode+"_pair_order_means.png"
+				page.img(width=400,height=300,alt=pcode+"order_means",\
+				src=figpath)
+				# Printing p-values
+				page.table(style="margin:auto;border:1px solid black")	
+				page.tr()
+				page.td(["Res"+str(r) for r in \
+					np.array(analyses[pcode]['idx_cols'])+1],\
+						style="margin:auto;border:1px solid black;"+\
+						"font-size:70%;padding:0.5em")
+				page.tr.close()
+				page.tr()
+				page.td(self._prep_div_tbl1(\
+					analyses[pcode]['result_pair']),\
+					style="margin:auto;border:1px solid black;"+\
+						"font-size:50%;padding:0.5em")
+				page.tr.close()
+				page.table.close()
+				page.div.close()
+			page.div.close()
+		page.div.close()
 
 	def _plot_patient_order_means(self,patient_col_mean,pcode,idx_cols,
 		mode):
