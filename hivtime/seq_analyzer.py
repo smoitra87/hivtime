@@ -54,7 +54,7 @@ EXEC_JALVIEW = False
 DO_PROCESS =False
 DO_HOTSPOT = False
 DO_STAT = True
-DO_STAT_PYMOL = True
+DO_STAT_PYMOL = False
 
 #----------------------------------------------------------------------
 # Scripts
@@ -383,8 +383,18 @@ The figures below display the time preference for each residue type for select c
 
 		#--------------------------------------------------------------
 		# Visualization of major statistically significant res and edges
+		page.hr()
+		page.br()
 		self._viz_sig(analyses)
-
+		page.h4("Statistically significant residues visualized on structure")
+		figpath="figs/sig_res.png"
+		page.img(width=640,height=480,alt="sig_res",\
+				src=figpath)
+		
+		page.h4("Statistically significant edges visualized on structure")
+		figpath="figs/sig_res_pair.png"
+		page.img(width=640,height=480,alt="sig_res_pair",\
+				src=figpath)
 
 
 		with open("patient_stats.html","w") as fout : 
@@ -406,6 +416,7 @@ name of the patient is displayed as well
 		# Create a Pymol instance and plot them 
 		if DO_STAT_PYMOL : 
 			self._draw_sig_pymol()			
+
 
 	def _draw_sig_pymol(self) : 
 		""" Draws the significant residues on the protein structure"""
