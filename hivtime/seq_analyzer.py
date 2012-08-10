@@ -403,14 +403,9 @@ name of the patient is displayed as well
 		# Get the list of the stat significant pairs
 		self.sig_pair = self._get_sig_elems(analyses,'pair')
 
-		assert False
-
 		# Create a Pymol instance and plot them 
 		if DO_STAT_PYMOL : 
 			self._draw_sig_pymol()			
-
-
-
 
 	def _draw_sig_pymol(self) : 
 		""" Draws the significant residues on the protein structure"""
@@ -436,6 +431,7 @@ name of the patient is displayed as well
 			cmd.label('3H4E//A/'+str(resi)+'/CA',\
 				'"%s%s "%(resn,resi)')
 		cmd.set("label_size","-2")
+		cmd.set('label_position','(0,2,3)')
 		cmd.ray()
 		sys.stderr.write("Sleeping for 1 sec before saving image")
 		time.sleep(1)
@@ -443,6 +439,28 @@ name of the patient is displayed as well
 		cmd.png(figpath,width=800,height=600)
 	
 		#assert False
+		for n,e in enumerate(self.sig_pair.keys()) : 
+			t = cmd.dist('dist'+str(n),'3H4E//A/'+str(e[0])+'/CA',\
+				'3H4E//A/'+str(e[1])+'/CA')
+			cmd.color('red','dist'+str(n))
+			cmd.show('spheres','3H4E//A'+'/'+str(e[0])+'/CA')
+			cmd.show('spheres','3H4E//A'+'/'+str(e[1])+'/CA')
+			cmd.color('red','3H4E//A'+'/'+str(e[0])+'/CA')
+			cmd.color('red','3H4E//A'+'/'+str(e[1])+'/CA')
+			cmd.label('3H4E//A/'+str(e[0])+'/CA','"%s%s "%(resn,resi)')
+			cmd.label('3H4E//A/'+str(e[1])+'/CA','"%s%s "%(resn,resi)')
+			cmd.hide('labels','dist'+str(n))
+
+		cmd.set("sphere_transparency","0.3","color red")
+		cmd.set("sphere_scale","0.7","color red")
+		cmd.set('dash_radius','0.2');
+		cmd.set('dash_gap','0.0');
+		cmd.ray()
+		sys.stderr.write("Sleeping for 1 sec before saving image")
+		time.sleep(1)
+		figpath="figs/sig_res_pair.png"
+		cmd.png(figpath,width=800,height=600)
+		
 
 	def _get_sig_elems(self,analyses,type_res_pair) :
 		""" Helper function that gets a list of significant residues or pairs
@@ -450,7 +468,7 @@ based on the argument that is passed to the function
 WARNING : The idx returned by the function is one less than the residue number
 
 		"""
-		sig_res = {} # init empty dict
+		sig_type = {} # init empty dict
 		for pcode in filter(lambda x:analyses[x]['plot_'+type_res_pair],\
 			self.pcodes_time.keys()) : 
 			idx_cols = analyses[pcode]['idx_cols']	
@@ -458,15 +476,18 @@ WARNING : The idx returned by the function is one less than the residue number
 			result = map(lambda x: \
 				filter(lambda y: y[1]<sig_lev,x.items()),result)
 			result = filter(lambda x: len(x)>0,enumerate(result))
-			
+		
+			if type_res_pair  == 'pair' : 
+				idx_cols=list(itertools.combinations(np.array(idx_cols),2))
+	
 			for idx,result_elem in result :
 				if len(result_elem) == 0 :
 					continue 
-				if not sig_res.has_key(idx_cols[idx]) : 
-					sig_res[idx_cols[idx]] = {}
-				sig_res.get(idx_cols[idx])[pcode] = result_elem
+				if not sig_type.has_key(idx_cols[idx]) : 
+					sig_type[idx_cols[idx]] = {}
+				sig_type.get(idx_cols[idx])[pcode] = result_elem
 
-		return sig_res
+		return sig_type
 
 	def _prep_div_tbl1(self,result) : 
 		""" Helper function that prepares string for div """
