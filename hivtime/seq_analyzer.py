@@ -7,7 +7,7 @@ from operator import itemgetter
 import copy,glob
 import time
 import itertools
-
+from pdb import set_trace as stop
 
 import numpy as np
 import pylab as pl
@@ -54,6 +54,7 @@ EXEC_JALVIEW = False
 DO_PROCESS =False
 DO_HOTSPOT = False
 DO_STAT = True
+DO_STAT_PYMOL = True
 
 #----------------------------------------------------------------------
 # Scripts
@@ -279,7 +280,6 @@ and with time ?
 		results_test = self._test_wilcox(patient_col_rank)
 		analysis['result_res']= results_test
 
-
 		if len(patient_col_mean) > 0  :
 			analysis['plot_res'] = True
 #			self._plot_patient_order_means(patient_col_mean,pcode,\
@@ -380,10 +380,93 @@ The figures below display the time preference for each residue type for select c
 		page.h4("Patientwise time dependent residue pairs")
 
 		self._write_divs2(analyses)
-	
+
+		#--------------------------------------------------------------
+		# Visualization of major statistically significant res and edges
+		self._viz_sig(analyses)
+
+
+
 		with open("patient_stats.html","w") as fout : 
 			fout.write(page.__str__())
 		self.page = self._page_prev
+
+	def _viz_sig(self,analyses) : 
+		""" Visualize and add image for stat sig residues and pairs. Note that
+the residues across all patients are aggregated and then displayed onto the 
+protein structure. Normally a residue occurs only in one patient. But in case
+there are multiple patients that have the same significant residue then the 
+name of the patient is displayed as well
+		"""
+		# Get the list of the significant residues
+		self.sig_res = self._get_sig_elems(analyses,'res')
+		# Get the list of the stat significant pairs
+		self.sig_pair = self._get_sig_elems(analyses,'pair')
+
+		assert False
+
+		# Create a Pymol instance and plot them 
+		if DO_STAT_PYMOL : 
+			self._draw_sig_pymol()			
+
+
+
+
+	def _draw_sig_pymol(self) : 
+		""" Draws the significant residues on the protein structure"""
+		pymol.finish_launching()
+		cmd.load(pdbpath)	
+		cmd.bg_color('white')
+		cmd.hide('all')
+		cmd.show('cartoon','3H4E and chain A')
+		cmd.set_view(\
+		    '-0.912057340, -0.295883119, -0.283901036,\
+			0.399889141, -0.795006156, -0.456119299,\
+			-0.090745762, -0.529538393, 0.843419492,\
+			0.000087761, -0.000581503, -183.590560913,\
+			8.321296692, -66.967765808, -33.590000153,\
+			-36.799331665, 403.937011719, -20.000000000' )	
+		cmd.color('wheat')
+		cmd.color("marine","chain A and i. "+\
+			"+".join(map(str,np.array(self.sig_res.keys())+1)))	
+		cmd.show("spheres","color marine and name CA")
+		cmd.set("sphere_transparency","0.3","color marine")
+		cmd.set("sphere_scale","0.7","color marine")
+		for resi in np.array(self.sig_res.keys())+1 : 
+			cmd.label('3H4E//A/'+str(resi)+'/CA',\
+				'"%s%s "%(resn,resi)')
+		cmd.set("label_size","-2")
+		cmd.ray()
+		sys.stderr.write("Sleeping for 1 sec before saving image")
+		time.sleep(1)
+		figpath="figs/sig_res.png"
+		cmd.png(figpath,width=800,height=600)
+	
+		#assert False
+
+	def _get_sig_elems(self,analyses,type_res_pair) :
+		""" Helper function that gets a list of significant residues or pairs
+based on the argument that is passed to the function
+WARNING : The idx returned by the function is one less than the residue number
+
+		"""
+		sig_res = {} # init empty dict
+		for pcode in filter(lambda x:analyses[x]['plot_'+type_res_pair],\
+			self.pcodes_time.keys()) : 
+			idx_cols = analyses[pcode]['idx_cols']	
+			result = analyses[pcode]['result_'+type_res_pair]
+			result = map(lambda x: \
+				filter(lambda y: y[1]<sig_lev,x.items()),result)
+			result = filter(lambda x: len(x)>0,enumerate(result))
+			
+			for idx,result_elem in result :
+				if len(result_elem) == 0 :
+					continue 
+				if not sig_res.has_key(idx_cols[idx]) : 
+					sig_res[idx_cols[idx]] = {}
+				sig_res.get(idx_cols[idx])[pcode] = result_elem
+
+		return sig_res
 
 	def _prep_div_tbl1(self,result) : 
 		""" Helper function that prepares string for div """
@@ -904,7 +987,6 @@ Fix 4 : Time information is inserted as first field in record name
 		sorted_tups = sorted(tups,key=itemgetter(1))
 
 		for rec,time in sorted_tups : 
-			#assert False
 			rec.name = str(time) +"."+ rec.name
 			rec.id = str(time) + "." + rec.id
 		records = map(itemgetter(0),sorted_tups)
