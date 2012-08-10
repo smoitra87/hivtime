@@ -396,10 +396,23 @@ The figures below display the time preference for each residue type for select c
 		page.img(width=640,height=480,alt="sig_res_pair",\
 				src=figpath)
 
+		#----------------------------------------------------------------
+		# This section investigates whether the statistically significant 
+		# residues and edges have any major biophysical differnce in terms of
+		# polarity and net charge
+
+		self._check_sig_res_biophys()
+		#self._check_sig_pair_biophys()
+
 
 		with open("patient_stats.html","w") as fout : 
 			fout.write(page.__str__())
 		self.page = self._page_prev
+
+	def _check_sig_res_biophys(self) : 
+		""" Check if each of the residues ahs any biophysical change and if so 			report it """
+		for resi,pat_sig in self.sig_res.items() : 
+			pass
 
 	def _viz_sig(self,analyses) : 
 		""" Visualize and add image for stat sig residues and pairs. Note that
@@ -450,7 +463,8 @@ name of the patient is displayed as well
 		cmd.png(figpath,width=800,height=600)
 	
 		#assert False
-		for n,e in enumerate(self.sig_pair.keys()) : 
+		for n,e in enumerate(\
+			map(lambda x: np.array(x)+1,self.sig_pair.keys())) : 
 			t = cmd.dist('dist'+str(n),'3H4E//A/'+str(e[0])+'/CA',\
 				'3H4E//A/'+str(e[1])+'/CA')
 			cmd.color('red','dist'+str(n))

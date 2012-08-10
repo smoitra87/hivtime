@@ -27,6 +27,33 @@ code_tbl = [
 	('Organism','TEXT')
 ]
 
+"""
+ Maps from aa type to a tuple containing polarity and charge information 
+ (0/1,-1/0/1) - NonPolar/Polar, Negative,Neutral,Positive
+"""
+aa_prop_tbl =  {
+	'A' : (0,0),
+	'G' : (0,0),
+	'L' : (0,0),
+	'I' : (0,0),
+	'M' : (0,0),
+	'F' : (0,0),
+	'P' : (0,0),
+	'W' : (0,0),
+	'V' : (0,0),
+	'N' : (1,0),
+	'C' : (1,0),
+	'Q' : (1,0),
+	'H' : (1,0),
+	'S' : (1,0),
+	'T' : (1,0),
+	'Y' : (1,0),
+	'R' : (1,1),
+	'K' : (1,1),
+	'D' : (1,-1),
+	'E' : (1,-1),
+}
+
 def get_basedir() :
 	""" Get the base directory of the project"""
 	paths = os.path.split
