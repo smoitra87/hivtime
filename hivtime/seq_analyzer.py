@@ -401,9 +401,20 @@ The figures below display the time preference for each residue type for select c
 		# residues and edges have any major biophysical differnce in terms of
 		# polarity and net charge
 
-		self._check_sig_res_biophys()
-		#self._check_sig_pair_biophys()
+		page.hr()
+		page.br()
+		page.h4("Comparison of Biophysical properties of significant\
+			time varying mutations and edges")
 
+		page.br()
+		page.p("Columnwise mutation Biophysical properties")
+		self._check_sig_res_biophys()
+
+		page.br()
+		page.p("Edgewise mutation Biophysical properties")
+		self._check_sig_pair_biophys()
+
+		
 		with open("patient_stats.html","w") as fout : 
 			fout.write(page.__str__())
 		self.page = self._page_prev
@@ -418,26 +429,71 @@ The figures below display the time preference for each residue type for select c
 		page.tr()
 		page.td(["ResNum","PCode","SigMutation","Comments"])
 		page.tr.close()
-		page.table.close()
 
 		for resi,pat_sig in self.sig_res.items() : 
-			 pass
+			 for pcode in pat_sig.keys() : 
+				mut_list = map(itemgetter(0),pat_sig[pcode])
+				for mut in mut_list  :
+					page.tr()
+					biophyscode = self._ret_biophyscode(mut)
+					page.td([str(resi+1),pcode,\
+						mut.replace("<","-"),biophyscode])
+					page.tr.close()
 
+		page.table.close()
+
+	def _check_sig_pair_biophys(self) :
+		""" Check if each of the edges has any biophysical change and if so
+ 			report it """
+
+		# Set up the reporting table
+		page = self.page
+		page.table(border=1)
+		page.tr()
+		page.td(["Edge Pair","PCode","SigMutationEdge","Comments"])
+		page.tr.close()
+
+		for pair,pat_sig in self.sig_pair.items() : 
+			 for pcode in pat_sig.keys() : 
+				mut_list = map(itemgetter(0),pat_sig[pcode])
+				for mut in mut_list  :
+					page.tr()
+					biophyscode = self._ret_biophyscode(mut)
+					page.td([str(map(lambda x:x+1,pair)),pcode,\
+						mut.replace("<","-"),biophyscode])
+					page.tr.close()
+
+		page.table.close()
 
 	def _ret_biophyscode(self,mut) : 
-		"""Calculate the biophysical code for the mutation or mutation pair """
+		"""Calculate the biophysical code for the mutation or mutation pair"""
 		if len(mut)	== 3 :  # A residue mutation
 			aa1,aa2 = mut.split('<') 
 			if util.aa_prop_tbl[aa1] == util.aa_prop_tbl[aa2]  : 
-				return "Same"
+				return "Same Polarity and Charge"
 			else :
 				return "Mismatch:"+str(util.aa_prop_tbl[aa1])+"-"+\
 					str(util.aa_prop_tbl[aa2])
 
 		if len(mut) == 5 : # An edge mutation 
 			e1,e2 = mut.split('<')
-			aa1,aa2 = e1
-			aa3,aa4 = e2
+			aa1_t1,aa2_t1 = e1
+			aa1_t2,aa2_t2 = e2
+			code1 =  (util.aa_prop_tbl[aa1_t1] == util.aa_prop_tbl[aa1_t2])
+			code2 =  (util.aa_prop_tbl[aa2_t1] == util.aa_prop_tbl[aa2_t2])
+			if code1 and code2 : 
+				return "Same Polarity and Charge"
+			if code1 and not code2 : 
+				return "Res2 mismatch:"+str(util.aa_prop_tbl[aa1_t1])+"-"+\
+					str(util.aa_prop_tbl[aa1_t2])
+			if code2 and not code1 : 
+				return "Res1 mismatch:"+str(util.aa_prop_tbl[aa2_t1])+"-"+\
+					str(util.aa_prop_tbl[aa2_t2])
+			return "Res1 and Res2 mismatch:"+\
+				str(util.aa_prop_tbl[aa1_t1])+"-"+\
+				str(util.aa_prop_tbl[aa1_t2])+";"+\
+				str(util.aa_prop_tbl[aa2_t1])+"-"+\
+				str(util.aa_prop_tbl[aa2_t2])
 
 	def _viz_sig(self,analyses) : 
 		""" Visualize and add image for stat sig residues and pairs. Note that
