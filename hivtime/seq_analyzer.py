@@ -54,7 +54,7 @@ EXEC_JALVIEW = False
 DO_PROCESS =False
 DO_HOTSPOT = False
 DO_STAT = True
-DO_STAT_PYMOL = False
+DO_STAT_PYMOL =False
 
 #----------------------------------------------------------------------
 # Scripts
@@ -404,15 +404,40 @@ The figures below display the time preference for each residue type for select c
 		self._check_sig_res_biophys()
 		#self._check_sig_pair_biophys()
 
-
 		with open("patient_stats.html","w") as fout : 
 			fout.write(page.__str__())
 		self.page = self._page_prev
 
 	def _check_sig_res_biophys(self) : 
-		""" Check if each of the residues ahs any biophysical change and if so 			report it """
+		""" Check if each of the residues ahs any biophysical change and if so
+ 			report it """
+
+		# Set up the reporting table
+		page = self.page
+		page.table(border=1)
+		page.tr()
+		page.td(["ResNum","PCode","SigMutation","Comments"])
+		page.tr.close()
+		page.table.close()
+
 		for resi,pat_sig in self.sig_res.items() : 
-			pass
+			 pass
+
+
+	def _ret_biophyscode(self,mut) : 
+		"""Calculate the biophysical code for the mutation or mutation pair """
+		if len(mut)	== 3 :  # A residue mutation
+			aa1,aa2 = mut.split('<') 
+			if util.aa_prop_tbl[aa1] == util.aa_prop_tbl[aa2]  : 
+				return "Same"
+			else :
+				return "Mismatch:"+str(util.aa_prop_tbl[aa1])+"-"+\
+					str(util.aa_prop_tbl[aa2])
+
+		if len(mut) == 5 : # An edge mutation 
+			e1,e2 = mut.split('<')
+			aa1,aa2 = e1
+			aa3,aa4 = e2
 
 	def _viz_sig(self,analyses) : 
 		""" Visualize and add image for stat sig residues and pairs. Note that
