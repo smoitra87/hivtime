@@ -52,9 +52,9 @@ sig_lev = 0.05
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
-FETCH_VIR = True
+FETCH_VIR = False
 EXEC_JALVIEW = False
-DO_PROCESS =True
+DO_PROCESS = True
 DO_HOTSPOT = False
 DO_STAT = False
 DO_STAT_PYMOL =False
@@ -497,7 +497,7 @@ The figures below display the time preference for each residue type for select c
 					page.tr.close()
 
 		page.table.close()
-
+	
 	def _check_sig_pair_biophys(self) :
 		""" Check if each of the edges has any biophysical change and if so
  			report it """
