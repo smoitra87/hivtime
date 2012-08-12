@@ -34,6 +34,7 @@ dbpath = 'hivtime.db'
 datadir = util.get_datadir()
 JALVIEW_DIR = "/home/subhodeep/Jalview"
 LOSDB_URL = "http://www.hiv.lanl.gov/components/sequence/HIV/search/search.html"
+LOSDB_ADVSEARCH_URL = "http://www.hiv.lanl.gov/components/sequence/HIV/asearch/map_db.comp"
 
 dbname = 'hivtime.db'
 dbpath = os.path.join(util.get_datadir(),dbname)
@@ -45,15 +46,17 @@ edgepath = os.path.join(datadir,edgefname)
 tbls = ['p24.tbl']
 tbls = [os.path.join(util.get_datadir(),tbl) for tbl in tbls]
 ent_top_cutoff = 0.03 # used for annotation top entropy values
+ent_top_agg_cutoff = 0.5 # used for annotation top entropy values
 ent_stat_cutoff = 0.6 # used for speeding up stat calculations
 sig_lev = 0.05
 
 # If FETCH_ALN is True, then the alignment is downloaded anyway
 FETCH_ALN = False
+FETCH_VIR = True
 EXEC_JALVIEW = False
-DO_PROCESS =False
+DO_PROCESS =True
 DO_HOTSPOT = False
-DO_STAT = True
+DO_STAT = False
 DO_STAT_PYMOL =False
 
 #----------------------------------------------------------------------
@@ -142,6 +145,59 @@ class SeqAnalyzer(object)  :
 				linestyle="dashed")
 	
 			pl.savefig("figs/spikeplot.png")
+			pl.close()
+
+			#----------------------------------------------------------------
+			# Repeat the Hotspot analysis for all sequences bunched together
+			# WARNING : This is surely wrong, since sometimepoints are 
+			# oversampled. This is the same problem that we had with phylogeny
+
+			pat_count_aa = []
+			for pcode in self.pcodes_time.keys() :
+				p24fpath = os.path.join(datadir,pcode+'_p24.fasta')
+				if not os.path.exists(p24fpath) : 
+					raise IOError('File %s not found'%p24fpath)
+				aln = AlignIO.read(open(p24fpath),"fasta")
+				count_aa = self._get_aa_count_aln(aln)
+				pat_count_aa.append(count_aa)
+			
+			# Create a new aggregate dictionary
+			agg_count = [{} for col in pat_count_aa[0]]
+			for pat in pat_count_aa : 
+				for col_idx in range(len(pat)) : 
+					aa_list = pat[col_idx].keys()
+					for aa in aa_list : 
+						agg_count[col_idx][aa] = \
+							agg_count[col_idx].get(aa,0)+pat[col_idx][aa]
+
+			# Calculate entropy from aggregate dictionary
+			ent_agg = []
+			for col_id,ftab in enumerate(agg_count) : 
+				counts = ftab.values()
+				sum_c = sum(counts)
+				p = map(lambda x : (0.0+x)/sum_c,counts) # probabilities
+				e = -reduce(lambda x,y:x+y,map(lambda t:t[0]*t[1],\
+					zip(p,np.log(p))))
+				ent_agg.append(e)
+
+			# Visualize the entropy values and plot it
+			pl.figure()
+			pl.plot(ent_agg)
+			pl.title("Plot of the total entropy across patients")
+			pl.xlabel('AA position')
+			pl.ylabel('Entropy Values')
+
+			# Place text on peaks
+			ent_agg = np.array(ent_agg)
+			idx_peaks = np.where(ent_agg > ent_top_agg_cutoff)[0]			
+			for idx in idx_peaks :
+				pl.text(idx,ent_agg[idx]+0.002,str(idx+1)+\
+					self._canon_seq[idx])
+		
+			pl.axhline(y=ent_top_agg_cutoff,color="black",linewidth=2,\
+				linestyle="dashed")
+	
+			pl.savefig("figs/spikeplot_agg.png")
 			pl.close()
 
 			# Create Pymol visualization of hotspot
@@ -813,6 +869,11 @@ WARNING : The idx returned by the function is one less than the residue number
 		figpath="figs/spikeplot.png"
 		page.img(width=800,height=600,alt="SpikePlot",src=figpath)
 
+		page.br()
+		page.h4("Hotspot Spike plot Aggregate across all patients")
+		figpath="figs/spikeplot_agg.png"
+		page.img(width=800,height=600,alt="SpikePlot",src=figpath)
+
 		page.hr()
 		page.h4("Hotspots laid out on structure")
 		page.a("Hotspot Pymol Session",href="../data/hot_capsid.pse")
@@ -856,6 +917,18 @@ WARNING : The idx returned by the function is one less than the residue number
 			info_cols.append(e)
 		return info_cols
 	
+	def _get_aa_count_aln(self,aln) : 
+		""" Return a  frequency table of amino acids for an alignment
+It is a list of dicts which contain aa counts per column 
+		"""
+		count_cols = []
+		for col_id in range(aln.get_alignment_length()) :
+			col = aln.get_column(col_id)
+			ftab = {} # Freq table
+			for c in col :
+				ftab[c] = ftab.get(c,0) + 1
+			count_cols.append(ftab)
+		return count_cols
 
 	
 	def _process_pcode(self,pcode) : 
@@ -957,6 +1030,7 @@ Pick timeforsero > timeinfec > dayssample > fiebig > sampling year
 
 		return pcodes_time
 
+
 class PatientAlignment(object) :
 	"""Creates an alignment of patient sequences """
 	def __init__(self,pat_code,seqobj) :
@@ -971,8 +1045,17 @@ class PatientAlignment(object) :
 		self._p24_start = 'PIVQN'
 		self._p24_end = 'KARVL'
 		self._load_aln()
+		self._load_vir()
 		self.consensus = self._get_consensus()
 		self._create_viz_aln()
+
+	def _load_vir(self) : 
+		""" Loads additional data for virology report generation
+Download behavior is controlled by flag set on top of the script. No automatic detection of files is done
+		"""
+		if FETCH_VIR : 
+			self._fetch_vir()
+
 
 	def _load_aln(self) :
 		""" Load the alignment 
@@ -1154,6 +1237,51 @@ Fix 4 : Time information is inserted as first field in record name
 			self.pcode+'_gag.fasta'))
 		br.close()
 
+	def _fetch_vir(self) : 
+		""" Fetches additional details about the patients for sanity checking
+use by HIV virologists
+		"""
+		print("Downloading %s additional table via Browser session..."\
+				%(self.pcode))
+
+		# Start the broser
+		br = mechanize.Browser()	
+		
+		# Set the broser options
+		br.set_handle_robots(False)
+
+		# Open the search page
+		br.open(LOSDB_ADVSEARCH_URL)
+		br.select_form(nr=1)
+		br.find_control("sequenceaccessions").get("sa_se_id").selected=True
+		br.find_control("sequenceaccessions").get("sa_genbankaccession").selected=True
+		br.find_control('seq_sample').get('ssam_se_id').selected=True
+		br.find_control('seq_sample').get('ssam_pat_id').selected=True
+		br.find_control('seq_sample').get('ssam_locus_name').selected=True
+		br.find_control('seq_sample').get('ssam_sample_georegion').selected=True
+		br.find_control('seq_sample').get('ssam_sample_country').selected=True
+		br.find_control('seq_sample').get('ssam_sample_year').selected=True
+		br.find_control('seq_sample').get('ssam_subtype').selected=True
+		br.find_control('seq_sample').get('ssam_sample_tissue').selected=True
+		br.find_control('seq_sample').get('ssam_culture_method').selected=True
+		br.find_control('seq_sample').get('ssam_drug_naive').selected=True
+		br.find_control('seq_sample').get('ssam_viralload').selected=True
+		br.find_control('seq_sample').get('ssam_amplification_strategy').selected=True
+		br.find_control('seq_sample').get('ssam_fiebig').selected=True
+		br.find_control('patient').get('pat_id').selected=True
+		br.find_control('patient').get('pat_code').selected=True
+		br.find_control('patient').get('pat_project').selected=True
+		br.submit()
+		br.select_form(nr=1)
+		br["patient.pat_code"] = self.pcode
+		br.submit()
+		br.select_form(nr=1)
+		response = br.submit(name='action Download')
+		data = response.get_data()
+		with(open(os.path.join(datadir,self.pcode+'_vir.tbl'),'w')) as fout : 
+			fout.write(data)
+		br.close()
+
 	def _check_aln_exists(self) :
 		""" Check if the patient file exists """
 		return os.path.isfile(self.fpath)
@@ -1161,6 +1289,7 @@ Fix 4 : Time information is inserted as first field in record name
 	def _cut_aln(self) : 
 		""" Cut the alignment according to p24 dimensions """
 		pass
+
 
 #-----------------------------------------------------------------------
 # Main Script
