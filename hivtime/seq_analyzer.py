@@ -105,6 +105,11 @@ class SeqAnalyzer(object)  :
 			if DO_PROCESS :
 				self._process_pcode(pcode)
 
+		#--------------------------------------------------------------\
+		# Parse the downloaded additional tables and load onto SQL database
+		if DO_PROCESS :
+			self._parse_load_vir()
+
 		#--------------------------------------------------------------
 		# Create a hotspot visualization based on the entropy scores of
 		# all sequences pooled together
@@ -234,6 +239,43 @@ class SeqAnalyzer(object)  :
 
 		with open("index_viz.html","w") as fout :
 			fout.write(page.__str__())
+
+	def _parse_load_vir(self) : 
+		""" Parse the datafiles and load them onto the SQL db"""
+		
+		# Open connection to Database and delete table if already exists
+		
+		for pcode in self.pcodes_time : 
+			fname = pcode+'_vir.tbl'
+			fpath = os.path.join(datadir,fname)
+			if not os.path.exists(fpath) : 
+				raise IOError('File %s not found'%fpath) 	
+			header,rows = self._parse_vir_tbl(fpath)
+			stop()
+
+	def _parse_vir_tbl(self,fpath) :
+		""" Parse the data as a string and then return a header and rows"""
+		with open(fpath,'r') as fin :
+			tbldat = fin.readlines()
+		
+		# Skip preheader lines 
+		while tbldat[0].strip() == '' : 
+			tbldat = tbldat[1:]
+		while tbldat[0].startswith('Number of records') : 
+			tbldat = tbldat[1:]
+	
+		# Get the header and the body 
+		header,records = tbldat[0],tbldat[1:]
+		header = header.strip().split('\t')
+		header = [h.replace(' ','') for h in header]
+		header = [h.replace('#','_n_') for h in header]
+		records = [record.strip().split('\t') for record in records]
+	
+		return header,records
+
+				
+			
+	
 
 	def _explore_stats1(self) : 
 		""" Do exploratory statistical analysis for entropy per patient
@@ -1254,11 +1296,13 @@ use by HIV virologists
 		br.open(LOSDB_ADVSEARCH_URL)
 		br.select_form(nr=1)
 		br.find_control("sequenceaccessions").get("sa_se_id").selected=True
-		br.find_control("sequenceaccessions").get("sa_genbankaccession").selected=True
+		br.find_control("sequenceaccessions").get(\
+			"sa_genbankaccession").selected=True
 		br.find_control('seq_sample').get('ssam_se_id').selected=True
 		br.find_control('seq_sample').get('ssam_pat_id').selected=True
 		br.find_control('seq_sample').get('ssam_locus_name').selected=True
-		br.find_control('seq_sample').get('ssam_sample_georegion').selected=True
+		br.find_control('seq_sample').get(\
+			'ssam_sample_georegion').selected=True
 		br.find_control('seq_sample').get('ssam_sample_country').selected=True
 		br.find_control('seq_sample').get('ssam_sample_year').selected=True
 		br.find_control('seq_sample').get('ssam_subtype').selected=True
@@ -1266,7 +1310,8 @@ use by HIV virologists
 		br.find_control('seq_sample').get('ssam_culture_method').selected=True
 		br.find_control('seq_sample').get('ssam_drug_naive').selected=True
 		br.find_control('seq_sample').get('ssam_viralload').selected=True
-		br.find_control('seq_sample').get('ssam_amplification_strategy').selected=True
+		br.find_control('seq_sample').get(\
+			'ssam_amplification_strategy').selected=True
 		br.find_control('seq_sample').get('ssam_fiebig').selected=True
 		br.find_control('patient').get('pat_id').selected=True
 		br.find_control('patient').get('pat_code').selected=True
